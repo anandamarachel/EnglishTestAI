@@ -2,7 +2,6 @@
 name = "englishtestcompro"
 version = "0.1.0"
 description = "Backend API for AI-assisted English practice"
-readme = "README.md"
 requires-python = ">=3.14,<3.15"
 dependencies = [
     "fastapi[standard]>=0.162.0,<1.0",
