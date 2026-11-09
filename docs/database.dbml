@@ -1,0 +1,350 @@
+// Design revision 2. Implemented by Alembic revision 0002; this file is a reference, not migration SQL.
+// See backend-design.md for state transitions, cross-table constraints and API fields.
+Project english_practice {
+  database_type: 'PostgreSQL'
+  Note: 'SDD feature baseline with Figma interaction refinements. No 500-character Writing limit. Live transcription optional.'
+}
+
+Table users {
+  user_id uuid [pk, not null]
+  email varchar(254) [not null, unique, note: 'Normalized lowercase email']
+  password_hash text [not null, note: 'Argon2id hash; never return through API']
+  display_name varchar(100) [not null]
+  user_role varchar(16) [not null, note: 'student | teacher; profile label, no extra privileges']
+  is_active boolean [not null, default: true]
+  password_changed_at timestamptz
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table auth_sessions {
+  session_id uuid [pk, not null]
+  user_id uuid [not null]
+  refresh_token_hash text [not null, unique]
+  expires_at timestamptz [not null]
+  revoked_at timestamptz
+  created_at timestamptz [not null]
+  indexes { user_id }
+}
+
+Table password_reset_tokens {
+  reset_id uuid [pk, not null]
+  user_id uuid [not null]
+  token_hash text [not null, unique]
+  expires_at timestamptz [not null]
+  used_at timestamptz
+  created_at timestamptz [not null]
+  indexes { user_id }
+  Note: 'Single-use, expiring reset token. No plaintext password or reset token is stored.'
+}
+
+Table topics {
+  topic_id uuid [pk, not null]
+  name varchar(100) [not null, unique]
+  description text
+  is_active boolean [not null, default: true]
+}
+
+Table ai_personas {
+  persona_id uuid [pk, not null]
+  name varchar(100) [not null]
+  role_description text [not null]
+  behavior_instructions text [not null, note: 'Internal prompt; not a public response field']
+  voice_key varchar(100) [not null]
+  is_active boolean [not null, default: true]
+}
+
+Table media_assets {
+  media_id uuid [pk, not null]
+  owner_user_id uuid [not null]
+  storage_key text [not null, unique, note: 'Private permanent key, never expose as public URL']
+  purpose varchar(32) [not null, note: 'listening_audio | speaking_user_audio | speaking_ai_audio']
+  mime_type varchar(100) [not null]
+  size_bytes bigint [not null]
+  duration_ms integer
+  status varchar(16) [not null, note: 'pending | ready | failed | deleted']
+  created_at timestamptz [not null]
+  expires_at timestamptz
+  indexes { (owner_user_id, created_at) }
+}
+
+Table exercises {
+  exercise_id uuid [pk, not null]
+  created_by uuid [not null]
+  topic_selection varchar(16) [not null, note: 'catalog | custom | random']
+  topic_id uuid [note: 'Resolved catalog topic; random selection resolves before ready']
+  custom_topic varchar(200)
+  skill varchar(16) [not null, note: 'writing | reading | listening | speaking']
+  difficulty varchar(16) [not null, note: 'beginner | intermediate | advanced']
+  content_cefr_level varchar(2) [not null, note: 'A2 | B1 | B2 content target, not learner certification']
+  title varchar(200) [note: 'May be null during generation; required when ready']
+  instructions text [note: 'May be null during generation; required when ready']
+  content_source varchar(16) [not null, note: 'ai | prepared']
+  generation_status varchar(16) [not null, note: 'pending | generating | ready | failed | cancelled']
+  generation_config jsonb [not null, note: 'Validated configuration snapshot, not arbitrary client JSON']
+  generator_version text
+  created_at timestamptz [not null]
+  indexes { (created_by, skill, created_at) }
+}
+
+Table writing_exercises {
+  exercise_id uuid [pk, not null]
+  target_word_count integer [note: 'Optional learning target, not a hard text limit']
+  rubric_version varchar(64) [not null]
+  rubric_snapshot jsonb [not null]
+}
+
+Table reading_exercises {
+  exercise_id uuid [pk, not null]
+  passage text [not null]
+  requested_word_count integer
+  question_count integer [not null, note: 'Default proposal 5; generation setting, not universal constraint']
+  feedback_mode varchar(24) [not null, note: 'per_question for this version']
+}
+
+Table listening_exercises {
+  exercise_id uuid [pk, not null]
+  audio_media_id uuid [note: 'Required before ready']
+  transcript text [not null]
+  transcript_policy varchar(24) [not null, note: 'after_submission']
+  question_count integer [not null, note: 'Default proposal 3']
+  feedback_mode varchar(24) [not null, note: 'after_submission for this version']
+}
+
+Table speaking_exercises {
+  exercise_id uuid [pk, not null]
+  persona_id uuid [not null]
+  persona_snapshot jsonb [not null]
+  rubric_version varchar(64) [not null]
+  rubric_snapshot jsonb [not null]
+  Note: 'Record/send/reply baseline; streaming transcription is not required.'
+}
+
+Table attempts {
+  attempt_id uuid [pk, not null]
+  user_id uuid [not null]
+  exercise_id uuid [not null]
+  attempt_number integer [not null]
+  source_attempt_id uuid [note: 'Optional prior Writing attempt whose text was copied for editing']
+  status varchar(24) [not null, note: 'in_progress | submitted | evaluating | completed | failed | cancelled']
+  current_stage varchar(24) [not null, note: 'writing | reading | quiz | listening | conversation | evaluation | results']
+  revision integer [not null, default: 1]
+  last_saved_at timestamptz
+  last_activity_at timestamptz [not null]
+  started_at timestamptz [not null]
+  submitted_at timestamptz
+  completed_at timestamptz
+  indexes {
+    (user_id, exercise_id, attempt_number) [unique]
+    (user_id, last_activity_at)
+  }
+}
+
+Table writing_attempts {
+  attempt_id uuid [pk, not null]
+  response_text text [not null, note: 'No 500-character constraint; immutable after submit']
+}
+
+Table reading_attempts {
+  attempt_id uuid [pk, not null]
+  paragraph_index integer [not null, default: 0]
+  offset_in_paragraph integer [not null, default: 0, note: 'Unicode code point offset']
+  current_question_id uuid
+}
+
+Table listening_attempts {
+  attempt_id uuid [pk, not null]
+  playback_position_ms integer [not null, default: 0]
+  current_question_id uuid
+  Note: 'Progress is persisted; playback rate and play/pause are local UI state.'
+}
+
+Table questions {
+  question_id uuid [pk, not null]
+  exercise_id uuid [not null]
+  question_type varchar(24) [not null, note: 'multiple_choice | short_answer']
+  question_text text [not null]
+  reference_answer text [note: 'Internal reference for short answers']
+  reference_explanation text [not null, note: 'Withheld until feedback is authorized']
+  evidence_spans jsonb [not null, note: 'Array of passage/transcript spans; internal until feedback']
+  grading_method varchar(16) [not null, note: 'answer_key | rubric']
+  rubric_version varchar(64) [note: 'Required for rubric grading']
+  rubric_snapshot jsonb [note: 'Required for rubric grading']
+  position integer [not null]
+  max_points numeric(6,2) [not null]
+  indexes { (exercise_id, position) [unique] }
+}
+
+Table question_options {
+  option_id uuid [pk, not null]
+  question_id uuid [not null]
+  option_text text [not null]
+  position integer [not null]
+  is_correct boolean [not null, note: 'Never exposed with unanswered questions']
+  indexes { (question_id, position) [unique] }
+}
+
+Table answers {
+  answer_id uuid [pk, not null]
+  attempt_id uuid [not null]
+  question_id uuid [not null]
+  selected_option_id uuid
+  response_text text
+  revision integer [not null, default: 1]
+  submitted_at timestamptz [note: 'Locks answer; retry cannot change it']
+  grading_status varchar(16) [not null, note: 'pending | processing | graded | failed | cancelled']
+  awarded_points numeric(6,2)
+  feedback text
+  grading_model_version text
+  updated_at timestamptz [not null]
+  indexes { (attempt_id, question_id) [unique] }
+}
+
+Table evaluations {
+  evaluation_id uuid [pk, not null]
+  attempt_id uuid [not null, unique]
+  status varchar(16) [not null, note: 'pending | processing | completed | failed | cancelled']
+  overall_score numeric(6,2)
+  max_score numeric(6,2)
+  rubric_version varchar(64) [not null]
+  rubric_snapshot jsonb [not null]
+  summary text
+  corrected_text text
+  feedback_payload jsonb [not null, note: 'Versioned corrections and assessment limitations; see contract']
+  model_version text
+  created_at timestamptz [not null]
+  completed_at timestamptz
+}
+
+Table criterion_results {
+  criterion_result_id uuid [pk, not null]
+  evaluation_id uuid [not null]
+  criterion_code varchar(40) [not null]
+  assessment_status varchar(20) [not null, note: 'assessed | not_assessed']
+  score numeric(6,2)
+  max_score numeric(6,2)
+  feedback text [not null]
+  indexes { (evaluation_id, criterion_code) [unique] }
+}
+
+Table exercise_vocabulary {
+  vocabulary_item_id uuid [pk, not null]
+  exercise_id uuid [not null, note: 'Must reference Reading exercise']
+  word_or_phrase varchar(200) [not null]
+  meaning text [not null]
+  example_sentence text [not null]
+  example_from_passage text [not null]
+  occurrences jsonb [not null, note: 'Code point spans in the immutable passage']
+  position integer [not null]
+  indexes { (exercise_id, position) [unique] }
+  Note: 'Available before quiz. History accesses the same immutable glossary through its exercise.'
+}
+
+Table conversation_sessions {
+  conversation_session_id uuid [pk, not null]
+  attempt_id uuid [not null, unique]
+  status varchar(16) [not null, note: 'active | paused | ended']
+  provider_session_ref text
+  context_summary text
+  next_position integer [not null, default: 1]
+  last_activity_at timestamptz [not null]
+  ended_at timestamptz
+}
+
+Table conversation_messages {
+  message_id uuid [pk, not null]
+  conversation_session_id uuid [not null]
+  client_message_key uuid [not null]
+  reply_to_message_id uuid [unique, note: 'AI reply to a user turn; null for initial AI greeting']
+  sender varchar(16) [not null, note: 'user | assistant']
+  position integer [not null]
+  transcript text [note: 'Final transcript only; partial live text is not required']
+  audio_media_id uuid
+  transcription_status varchar(20) [not null, note: 'pending | completed | failed | not_applicable']
+  delivery_status varchar(16) [not null, note: 'pending | processing | ready | failed | cancelled']
+  created_at timestamptz [not null]
+  indexes {
+    (conversation_session_id, position) [unique]
+    (conversation_session_id, client_message_key) [unique]
+  }
+}
+
+Table ai_jobs {
+  job_id uuid [pk, not null]
+  requested_by uuid [not null]
+  exercise_id uuid
+  attempt_id uuid
+  answer_id uuid
+  message_id uuid
+  job_type varchar(32) [not null, note: 'generate_exercise | evaluate_attempt | grade_answer | start_conversation | process_voice_turn']
+  status varchar(24) [not null, note: 'queued | running | cancel_requested | succeeded | failed | cancelled']
+  attempt_count integer [not null, default: 0]
+  max_attempts integer [not null]
+  execution_version integer [not null, default: 1, note: 'Reject stale worker results after lease reclaim or cancellation']
+  result_refs jsonb [not null, note: 'Stable output IDs for safe retries; never model-generated object IDs']
+  next_retry_at timestamptz
+  lease_expires_at timestamptz
+  cancel_requested_at timestamptz
+  error_code varchar(64)
+  created_at timestamptz [not null]
+  started_at timestamptz
+  finished_at timestamptz
+  indexes {
+    (requested_by, created_at)
+    (status, next_retry_at, created_at)
+  }
+  Note: 'Exactly one target must be present and match job_type. Partial unique active-target indexes specified in design.'
+}
+
+Table api_idempotency_keys {
+  idempotency_record_id uuid [pk, not null]
+  user_id uuid [not null]
+  idempotency_key uuid [not null]
+  operation varchar(160) [not null, note: 'HTTP method and concrete path']
+  request_hash varchar(64) [not null, note: 'Hash of canonical validated input; audio requests include file digest']
+  status varchar(16) [not null, note: 'pending | completed']
+  response_status integer
+  result_refs jsonb [not null, note: 'Created resource IDs; not access tokens, passwords, or raw audio']
+  created_at timestamptz [not null]
+  expires_at timestamptz [not null]
+  indexes { (user_id, idempotency_key) [unique] }
+  Note: 'Authenticated domain mutations only. Links repeated requests to existing resources without duplication.'
+}
+
+Ref: auth_sessions.user_id > users.user_id
+Ref: password_reset_tokens.user_id > users.user_id
+Ref: media_assets.owner_user_id > users.user_id
+Ref: exercises.created_by > users.user_id
+Ref: exercises.topic_id > topics.topic_id
+Ref: exercises.exercise_id - writing_exercises.exercise_id
+Ref: exercises.exercise_id - reading_exercises.exercise_id
+Ref: exercises.exercise_id - listening_exercises.exercise_id
+Ref: exercises.exercise_id - speaking_exercises.exercise_id
+Ref: listening_exercises.audio_media_id > media_assets.media_id
+Ref: speaking_exercises.persona_id > ai_personas.persona_id
+Ref: attempts.user_id > users.user_id
+Ref: attempts.exercise_id > exercises.exercise_id
+Ref: attempts.source_attempt_id > attempts.attempt_id
+Ref: attempts.attempt_id - writing_attempts.attempt_id
+Ref: attempts.attempt_id - reading_attempts.attempt_id
+Ref: attempts.attempt_id - listening_attempts.attempt_id
+Ref: reading_attempts.current_question_id > questions.question_id
+Ref: listening_attempts.current_question_id > questions.question_id
+Ref: questions.exercise_id > exercises.exercise_id
+Ref: question_options.question_id > questions.question_id
+Ref: answers.attempt_id > attempts.attempt_id
+Ref: answers.question_id > questions.question_id
+Ref: answers.selected_option_id > question_options.option_id
+Ref: attempts.attempt_id - evaluations.attempt_id
+Ref: criterion_results.evaluation_id > evaluations.evaluation_id
+Ref: exercise_vocabulary.exercise_id > exercises.exercise_id
+Ref: attempts.attempt_id - conversation_sessions.attempt_id
+Ref: conversation_messages.conversation_session_id > conversation_sessions.conversation_session_id
+Ref: conversation_messages.message_id - conversation_messages.reply_to_message_id
+Ref: conversation_messages.audio_media_id > media_assets.media_id
+Ref: ai_jobs.requested_by > users.user_id
+Ref: ai_jobs.exercise_id > exercises.exercise_id
+Ref: ai_jobs.attempt_id > attempts.attempt_id
+Ref: ai_jobs.answer_id > answers.answer_id
+Ref: ai_jobs.message_id > conversation_messages.message_id
+Ref: api_idempotency_keys.user_id > users.user_id
