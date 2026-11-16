@@ -24,6 +24,14 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Suaramu hanya dipakai untuk mengubah ucapan menjadi teks selama latihan Speaking.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- Allows the local http backend (localhost) during development only. -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
