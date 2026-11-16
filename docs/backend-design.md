@@ -1,13 +1,14 @@
 # Backend design and API field contract — revision 2
 
-Design date: 9 November 2026. Status: database implemented; business APIs planned.
-SQLAlchemy models and migration `0002` implement the domain schema. The running
-backend still exposes health endpoints only.
+Design date: 9 November 2026. Status: database implemented; account, catalog, dashboard,
+history, capabilities, Writing, Reading and job APIs implemented (16 November 2026);
+Listening and Speaking APIs planned.
+SQLAlchemy models and migration `0002` implement the domain schema.
 The full column/type/key reference is [database.dbml](database.dbml), containing 25 tables.
 The contract below specifies the intended implementation. Its machine-readable version is
 [api/openapi.json](api/openapi.json); the generated Postman collection and usage instructions
-are in [api/README.md](api/README.md). These describe planned routes as well as the implemented
-health endpoints; they are not an export of the current health-only server.
+are in [api/README.md](api/README.md). These describe planned routes as well as implemented
+ones; each operation's `x-implementation-status` says which.
 
 ## 1. Scope and decisions
 
@@ -501,13 +502,123 @@ The following operational/product choices remain explicit rather than silently i
 | Retake UX | Keep previous results accessible; label repeated material as practice rather than treating answer knowledge as a new proficiency measurement. |
 
 The OpenAPI contract and generated Postman collection now cover all 42 operations,
-including the two implemented health endpoints. Offline contract tests validate schemas,
+31 of them implemented (health, auth and profile, dashboard, capabilities, topics,
+personas, the attempt list, the Writing and Reading flows and job operations).
+Offline contract tests validate schemas,
 examples, endpoint coverage, public-field boundaries, security declarations and export
 consistency. They do not verify unimplemented runtime behavior.
 
-Next, implement authentication and shared resources, then one complete skill flow at a
-time. Update implementation-status labels and add runtime contract checks as routes become
-available. Keep the running server's Swagger UI limited to real implementations.
+Session decisions: access tokens are HS256 JWTs (default 15 minutes) bound to an
+`auth_sessions` row and checked against it on every request, so logout revokes immediately.
+Refresh tokens are opaque, stored as SHA-256 hashes and rotated with one conditional UPDATE;
+each refresh slides session expiry (default 30 days). Replaying a rotated token returns 401
+but does not revoke the session, because there is no token-family history; adding replay
+revocation would need a migration. Wrong email, wrong password and inactive accounts return
+the same 401 `INVALID_CREDENTIALS`.
+
+Password reset tokens are hashed, expire after 30 minutes, work once, and a new request voids
+older ones. Change/reset revoke every session and pending token atomically. A wrong current
+password is 422 (field `current_password`), not 401, so the app does not log the user out.
+No email provider exists yet: development writes to a local outbox; production answers 503.
+
+The dashboard's pending list means attempts waiting for evaluation (`submitted`,
+`evaluating`). Failed evaluations are found by filtering the attempt list with `status=failed`.
+Catalog seeds (`make seed`) use the Figma topic names; persona voice keys are neutral
+placeholders until a TTS model is chosen. Cursors are bound to the owner and filters.
+
+Writing and jobs (implemented):
+
+- Rubric `writing-ielts-practice-v1`: four IELTS-style criteria, all required, 0–9 in
+  half bands; overall = mean rounded to the nearest half band with .25/.75 rounding up.
+  Snapshotted on the exercise and evaluation. Labelled as a practice estimate.
+- No AI model is chosen. `app/ai/` defines typed requests/results; a deterministic fake
+  engine serves development/tests and is refused in production. Every model result is
+  validated again (criterion set, half bands, exact code-point spans, ordering) before
+  persistence, and the database re-checks spans.
+- Worker: claim with lease → execute outside transactions with heartbeat and timeout →
+  publish only if the job is still `running` with the claimed execution version. Expired
+  leases are reclaimed with a new version, so a returning stale worker is ignored.
+  Retryable errors back off exponentially up to `job_max_attempts`.
+- Locks: exercise row first, then job/attempt row, matching the triggers.
+- Idempotency reservations share the work's transaction; concurrent same-key requests
+  wait on the unique index and replay. Records expire after 24 hours.
+- Submission text above `writing_max_submission_chars` (default 20,000) returns 413 and
+  keeps the draft; drafts have no length limit. At most 3 generations per user may be
+  in progress (429).
+- Generic exercise/attempt routes serve all four skills; Speaking is submitted with
+  `/speaking/attempts/{id}/finish` (the generic submit returns 409 for it).
+
+Reading (implemented):
+
+- Generation asks for question types per position (cycling through `question_types`) and
+  validates the exact sequence, option sets (2–6, unique, one key), short-answer keys,
+  vocabulary count and passage length (±40% of target). Oversized requests return 413;
+  too few words per question returns 422. Nothing is silently shrunk.
+- The model returns exact evidence and vocabulary quotes; the backend locates them to
+  build code-point spans (vocabulary: case-insensitive whole-word matches).
+- Attempts create one answer row per question. Questions must be submitted in order;
+  each submit checks and increments the attempt revision and locks the answer.
+  Multiple choice grades immediately (200); short answers queue `grade_answer` (202)
+  with rubric `short-answer-v1` (0/0.5/1, snapshotted on the question).
+- Feedback for an answer unlocks only once it is submitted and graded; other keys never
+  appear in exercise, attempt or evaluation views.
+- Final submit requires every answer graded and stores evaluation `reading-quiz-v1`:
+  `overall_score` is the percentage (max 100), `quiz_summary` gives counts/points, and
+  `correct_count` is null for quizzes with short answers.
+
+Listening (implemented):
+
+- One `generate_exercise` job: script + questions from the model, validated (offered
+  voice keys only, one voice per speaker, at most 4 speakers, no speaker-label injection,
+  length ±40% of target, exact question types), then TTS. Audio bytes are checked
+  (RIFF/WAVE signature, PCM header, every frame decodes, size/duration bounds) before
+  being written atomically to a generated key under `media_storage_dir`. Publish inserts
+  the ready media row, transcript and questions in one transaction; if the result is not
+  committed (cancelled, superseded, rejected) the worker deletes the file. Files left by a
+  crash are removed by the worker's orphan sweep; referenced files are never touched.
+- Defaults: 3 questions, 80/120/180 words by difficulty (at least 20 per question); more
+  than 10 questions or more words than fit returns 413.
+- Exercise views show audio metadata and questions only; the transcript unlocks after
+  submission and evidence only for graded questions.
+- Drafts store playback position (≤ audio duration), current question (free navigation)
+  and editable answers. Submit locks all answers together; any blank answer returns 409
+  with one detail per question and locks nothing.
+- All multiple choice: 200 with evaluation `listening-quiz-v1`. With short answers: 202
+  with the `evaluate_attempt` coordinator. It is deferred at claim (no attempt used) while
+  grades are pending, and every grade outcome wakes it. It aggregates and never re-grades.
+  A failed or cancelled grade fails it (`GRADING_FAILED`); retrying it requeues only those
+  grades. Listening grade jobs are retried through the coordinator. Cancelling it cancels
+  outstanding grades.
+- Media: owner-only metadata/download (404 otherwise), 409 `MEDIA_NOT_READY`, 410
+  `MEDIA_UNAVAILABLE` for deleted/expired (or missing file), one byte range (206) or 416.
+  New attempts need available audio; existing results stay readable when audio is gone.
+  Retention/expiry policy is still an open decision (no expiry is set yet).
+
+Speaking (implemented):
+
+- Creation takes an active persona; persona (including private behaviour instructions)
+  and rubric `speaking-ielts-practice-v1` are snapshotted. One job writes the prompt.
+- Starting an attempt creates one session, the greeting message (position 1) and a
+  `start_conversation` job. Each turn is a multipart upload (`audio`, `client_message_key`)
+  checked from its bytes (PCM WAV, size/duration limits from `/capabilities`; 415/413) and
+  stored privately before the user message and its `process_voice_turn` job are created.
+  The job runs STT -> persona reply -> TTS; the reply gets the next position under the
+  exercise lock. No speech fails the turn with `NO_SPEECH_DETECTED`.
+- One active voice job per session (409 `TURN_IN_PROGRESS`), also enforced at commit.
+  Same `client_message_key` + same audio replays the original turn; different audio is
+  409 `IDEMPOTENCY_CONFLICT`. Paused sessions refuse turns; accepted work still finishes.
+- Context: the most recent `speaking_context_messages` successful messages only; failed
+  and cancelled turns stay in history with their recordings.
+- Finish needs a successful user turn and no voice work in progress, ends the session and
+  queues evaluation. Criteria marked `requires_audio` (fluency_coherence, pronunciation)
+  are assessed only by an engine declaring `assesses_audio`, which receives the original
+  recordings; otherwise they are forced to not_assessed and the overall band stays null.
+- Cancelling the attempt ends the session and cancels voice work. Voice jobs retry only
+  while the session is open and nothing else is running.
+
+All 42 contract operations are implemented. Remaining work is the real AI/STT/TTS
+adapter (no model chosen), an email provider, retention policy and deployment hardening.
+Keep the running server's Swagger UI limited to real implementations.
 
 ## Sources
 

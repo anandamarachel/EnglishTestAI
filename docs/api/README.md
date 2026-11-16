@@ -2,8 +2,12 @@
 
 This folder defines the API that the frontend and backend will implement. It covers
 42 operations and the public request/response fields for accounts, all four practice
-skills, history, audio, and AI jobs. The database is implemented; **only the two health
-endpoints are currently available over HTTP**.
+skills, history, audio, and AI jobs. The database is implemented. **Health, all auth and
+profile operations, dashboard, attempt list, capabilities, topics and personas are
+available over HTTP**, as are all four practice flows (Writing, Reading, Listening,
+Speaking), private media metadata/download and job status/cancel/retry. All 42 operations
+are implemented. Speaking recordings must be PCM WAV for now. In development the AI is a
+deterministic stand-in, so generated text and scores are illustrative.
 
 | File | Use |
 |---|---|
@@ -32,7 +36,7 @@ choices; they are not one linear end-to-end test.
 
 ## Variables and scripts
 
-After authentication is implemented, fill `email`, `password`, and `display_name` locally.
+Fill `email`, `password`, and `display_name` locally, then run Register and Login.
 Login and refresh requests save returned tokens into the selected environment. Protected
 requests inherit bearer authentication. Logout/reset/change clear locally stored tokens
 on success. The checked-in environment contains no real secrets; keep exported values
@@ -97,8 +101,8 @@ score bounds against a question, and exact Unicode span matching.
 - Requests reject unknown properties. The authenticated session supplies ownership.
 - No response exercise contains answer keys, internal prompts, or Listening transcript.
 - Non-health errors use `{code, message, request_id, retryable, details}`; health keeps its
-  existing compact `{status}` response. Planned validation errors use the shared envelope,
-  so implementation must add the corresponding exception handlers.
+  existing compact `{status}` response. Validation errors use the shared envelope; they
+  name the invalid field but never echo submitted values.
 - Null is explicit for unavailable response values; omission is only allowed where the
   schema permits it. Skill-specific exercises/drafts use discriminated variants.
 - Capacity figures and token lifetimes in examples are illustrative. Final limits,

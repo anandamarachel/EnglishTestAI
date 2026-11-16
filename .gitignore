@@ -17,3 +17,5 @@ build/
 .vscode/
 *.log
 storage/
+# Local password-reset outbox and other runtime files
+var/

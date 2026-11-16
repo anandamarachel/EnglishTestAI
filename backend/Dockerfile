@@ -11,6 +11,8 @@ FROM python:3.14-slim-bookworm AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PATH="/app/.venv/bin:$PATH"
 WORKDIR /app
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app
+# Writable runtime dirs (private media, development reset outbox); code stays root-owned.
+RUN mkdir -p /app/var/media && chown -R app:app /app/var
 COPY --from=builder /app/.venv /app/.venv
 COPY app ./app
 COPY alembic ./alembic

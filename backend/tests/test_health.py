@@ -62,3 +62,28 @@ def test_development_exposes_docs(settings: Settings) -> None:
     with TestClient(create_app(settings)) as client:
         assert client.get("/docs").status_code == 200
         assert "/api/v1/health/ready" in client.get("/openapi.json").json()["paths"]
+
+
+def test_app_and_worker_register_every_table() -> None:
+    """In a fresh process (tests elsewhere import the registry and would hide this)."""
+    import subprocess
+    import sys
+
+    from app.core.config import PROJECT_ROOT
+
+    for module in ("app.main", "app.worker.runner"):
+        code = (
+            f"import {module}; from app.db.base import Base; "
+            "assert {'answers', 'conversation_messages'} <= set(Base.metadata.tables)"
+        )
+        env_secret = {"POSTGRES_PASSWORD": "x", "JWT_SECRET": "j" * 32}
+        import os
+
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=PROJECT_ROOT,
+            env={**os.environ, **env_secret},
+            capture_output=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, result.stderr.decode()[-500:]

@@ -39,8 +39,10 @@ services:
   api:
     <<: *app
     profiles: ["full"]
+    volumes:
+      - media_data:/app/var/media
     ports:
-      - "127.0.0.1:${API_PORT:-8000}:8000"
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -54,5 +56,20 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  worker:
+    <<: *app
+    profiles: ["full"]
+    command: ["python", "-m", "app.worker"]
+    # Shares private audio with the API: the worker writes it, the API streams it.
+    volumes:
+      - media_data:/app/var/media
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  media_data:
