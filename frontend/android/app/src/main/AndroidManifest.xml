@@ -1,6 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Calls the English Day backend API and downloads private audio. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Records voice turns for the Speaking practice. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
     <application
-        android:label="english_day"
+        android:label="English Day"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
