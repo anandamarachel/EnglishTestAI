@@ -1,4 +1,30 @@
-# EnglishTestCompro
+# English Day · SMAN 10 Gowa
+
+Monorepo for **English Day**, an AI-assisted English practice mobile app (Writing,
+Reading, Listening, Speaking).
+
+```
+.
+├── backend/    # FastAPI server, PostgreSQL, AI worker (Docker)
+├── frontend/   # Flutter mobile app
+└── docs/       # Backend design, database schema, API contract
+```
+
+## Frontend (Flutter)
+
+Make sure the Flutter SDK is installed.
+
+```sh
+cd frontend
+flutter pub get
+flutter run            # or: flutter run -d chrome / -d windows
+```
+
+UI details and screen mapping: [frontend/README.md](frontend/README.md).
+
+---
+
+## Backend (FastAPI)
 
 Backend for **English Day**, an AI-assisted English practice app (Writing, Reading,
 Listening, Speaking). The Flutter app talks to this FastAPI server.
