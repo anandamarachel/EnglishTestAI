@@ -8,4 +8,8 @@ def build_engine(settings: Settings) -> AIEngine | None:
         from app.ai.fake import FakeAIEngine
 
         return FakeAIEngine()
+    if settings.ai_provider == "router":
+        from app.ai.router import RouterAIEngine
+
+        return RouterAIEngine(settings)
     return None

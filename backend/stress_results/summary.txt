@@ -1,0 +1,56 @@
+====================================================================================================
+STRESS TEST  users=10  flows=writing,reading,listening,speaking  parallel_flows=True  wall=625s
+====================================================================================================
+
+FLOWS (end to end per user)
+  flow          ok  fail  success    p50 s    p95 s    max s
+  listening     10     0     100%     44.8     91.8    109.7
+  reading       10     0     100%    148.9    163.5    163.5
+  speaking      10     0     100%    598.1    615.5    620.4
+  writing       10     0     100%    130.1    220.8    268.0
+
+AI JOBS (queue wait + processing)
+  job                     n   ok  fail    p50 s    p95 s    max s  errors
+  evaluate               20   20     0     71.1    122.6    198.9  
+  generate listening     10   10     0     43.5     90.8    108.8  
+  generate reading       10   10     0     61.1    114.1    118.6  
+  generate speaking      10   10     0     56.0     99.3    104.0  
+  generate writing       10   10     0     35.9     82.3     93.6  
+  grade answer           10   10     0     88.5    112.3    119.0  
+  speaking greeting      10   10     0     91.0    113.8    114.0  
+  speaking turn          20   20     0    211.6    424.8    424.8  
+
+HTTP ENDPOINTS
+  endpoint                                             n   err%   p50 ms   p95 ms   p99 ms   max ms  statuses
+  GET /jobs/{id}                                    2056   0.0%       11       27      276      337  {200: 2056}
+  GET /exercises/{id}                                 40   0.0%       19       35       40       41  {200: 40}
+  POST /exercises/{id}/attempts                       40   0.0%      156      241      347      389  {201: 40}
+  GET /attempts/{id}/evaluation                       40   0.0%       17       32       98      137  {200: 40}
+  POST /attempts/{id}/submit                          30   0.0%      168      348      358      360  {200: 20, 202: 10}
+  GET /media/{id}/download                            30   0.0%       22       68      102      115  {200: 30}
+  POST /attempts/{id}/answers/{q}/submit              30   0.0%      189      235      260      270  {200: 20, 202: 10}
+  GET /attempts/{id}/answers/{q}/feedback             30   0.0%       20       29       32       32  {200: 30}
+  GET /personas                                       20   0.0%       19      310      314      315  {200: 20}
+  PATCH /attempts/{id}/draft                          20   0.0%      126      243      323      343  {200: 20}
+  POST /speaking/attempts/{id}/turns                  20   0.0%      279      515      841      923  {202: 20}
+  GET /speaking/attempts/{id}/messages                20   0.0%       25       38       46       48  {200: 20}
+  POST /auth/register                                 10   0.0%      114      327      329      330  {201: 10}
+  POST /auth/login                                    10   0.0%       80      138      153      157  {200: 10}
+  GET /users/me                                       10   0.0%       14       59       63       64  {200: 10}
+  GET /dashboard                                      10   0.0%       17       73       77       78  {200: 10}
+  GET /capabilities                                   10   0.0%       12       86       87       88  {200: 10}
+  GET /topics                                         10   0.0%       14       44       47       48  {200: 10}
+  GET /attempts                                       10   0.0%       14       35       37       37  {200: 10}
+  POST /writing/exercises                             10   0.0%      191      318      370      383  {202: 10}
+  POST /listening/exercises                           10   0.0%      120      467      469      470  {202: 10}
+  POST /speaking/exercises                            10   0.0%      165      261      279      284  {202: 10}
+  POST /reading/exercises                             10   0.0%      120      326      372      384  {202: 10}
+  GET /media/{id}                                     10   0.0%       11       19       21       21  {200: 10}
+  GET /attempts/{id}/transcript                       10   0.0%       18       36       40       42  {200: 10}
+  GET /exercises/{id}/vocabulary                      10   0.0%       18       23       25       25  {200: 10}
+  GET /speaking/attempts/{id}/conversation            10   0.0%       19       23       23       23  {200: 10}
+  GET /attempts/{id}                                  10   0.0%       40       52       53       53  {200: 10}
+  POST /speaking/attempts/{id}/finish                 10   0.0%      189      529      583      596  {202: 10}
+
+  total requests 2546, 4.1 req/s, 5xx/network errors 0, 4xx 0
+  /health/ready during test: 310/310 ok, p95 11 ms, max 277 ms
