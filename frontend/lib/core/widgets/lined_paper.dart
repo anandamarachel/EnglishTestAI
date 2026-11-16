@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
+import 'package:english_day/core/theme/app_theme.dart';
 
 /// Latar kertas bergaris.
 class _LinesPainter extends CustomPainter {
@@ -114,12 +114,19 @@ class CorrectionText extends StatelessWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            Text(t.correction!,
-                                style: AppText.serif(
-                                    size: 14,
-                                    color: AppColors.primary,
-                                    style: FontStyle.italic)),
-                            const SizedBox(height: 6),
+                            // Tight line height + Flexible: the correction must fit in
+                            // the fixed _line height above the struck word (Source Serif
+                            // line boxes are taller than the glyphs) and may shrink
+                            // instead of overflowing when the system text size grows.
+                            Flexible(
+                              child: Text(t.correction!,
+                                  style: AppText.serif(
+                                      size: 14,
+                                      color: AppColors.primary,
+                                      style: FontStyle.italic,
+                                      height: 1.0)),
+                            ),
+                            const SizedBox(height: 4),
                             Text(
                               '${t.text} ',
                               style: style.copyWith(
@@ -147,4 +154,3 @@ class CorrectionText extends StatelessWidget {
     );
   }
 }
-

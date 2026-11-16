@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
+import 'package:english_day/core/theme/app_theme.dart';
 
 enum AppButtonVariant { primary, secondary, danger }
 
@@ -138,4 +138,3 @@ class AppTextAction extends StatelessWidget {
     );
   }
 }
-

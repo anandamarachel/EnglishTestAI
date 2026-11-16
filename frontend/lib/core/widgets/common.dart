@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
-import 'app_button.dart';
+import 'package:english_day/core/theme/app_theme.dart';
+import 'package:english_day/core/widgets/app_button.dart';
 
 /// Scaffold standar: app bar (back + judul + aksi) dan area aksi bawah
 /// yang dipisah garis tipis, sesuai pola semua layar desain.
@@ -342,4 +342,3 @@ void showAppSnack(BuildContext context, String message) {
       ),
     ));
 }
-

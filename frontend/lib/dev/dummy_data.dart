@@ -1,4 +1,4 @@
-import '../widgets/lined_paper.dart';
+import 'package:english_day/core/widgets/lined_paper.dart';
 
 /// Semua data dummy aplikasi (tanpa backend).
 class DummyUser {
@@ -8,13 +8,6 @@ class DummyUser {
   static const email = 'rina.amelia@sman10gowa.sch.id';
   static const password = 'password123';
   static const role = 'Siswa';
-}
-
-class AppInfo {
-  static const appName = 'English Day';
-  static const school = 'SMAN 10 Gowa';
-  static const tagline = 'English Day · SMAN 10 Gowa';
-  static const version = '1.0';
 }
 
 // ---------------------------------------------------------------- Writing
@@ -265,4 +258,3 @@ class ListeningDummy {
     ('Andi: Thank you. I\u2019ll sit near the window.', true),
   ];
 }
-

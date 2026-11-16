@@ -77,6 +77,9 @@ Untuk mempermudah verifikasi dan review slicing 1:1 terhadap seluruh 58 file gam
 2. Pilih menu **Tentang aplikasi**.
 3. Di dalam halaman ini terdapat **Galeri UI (58 layar)** yang dikelompokkan rapi berdasarkan kategori. Anda dapat mengklik setiap item untuk membuka layar dan state persis seperti mockup Figma / PNG.
 
+Galeri hanya tersedia di **build debug** (`flutter run`). Di build release, menu
+**Tentang aplikasi** menampilkan info aplikasi biasa.
+
 ---
 
 ## 🚀 Cara Menjalankan
@@ -103,27 +106,50 @@ flutter run
 
 ## 📁 Struktur Kode
 
+Kode disusun **per fitur**. State management memakai **Riverpod**
+(`flutter_riverpod`, `ProviderScope` dipasang di `main.dart`).
+
 ```
 lib/
-├── main.dart                          # Inisialisasi aplikasi & konfigurasi tema
-├── data/
-│   └── dummy_data.dart                # Seluruh data dummy (user, reading, listening, writing, speaking)
-├── theme/
-│   └── app_theme.dart                 # Design tokens (AppColors, AppText/GoogleFonts, AppTheme)
-├── widgets/
-│   ├── answer_widgets.dart            # AnswerOption, AnswerFeedback, ChatBubble, SoundWave
-│   ├── app_button.dart                # AppButton (primary, secondary, danger, loading), AppTextAction
-│   ├── app_text_field.dart            # AppTextField, FieldError, AppChoiceChip
-│   ├── common.dart                    # AppScaffold, BottomActionBar, AppCard, StatusBanner, Skeleton, InfoStateView
-│   └── lined_paper.dart               # LinedPaper, LinedText, CorrectionText (kertas bergaris)
-└── screens/
-    ├── auth/                          # Splash, Login, Register
-    ├── dashboard/                     # Dashboard (Lanjutkan latihan & pengguna baru)
-    ├── gallery/                       # Interactive Design Gallery (58 State Viewer)
-    ├── global/                        # Offline, Banner AI, Komponen Showcase
-    ├── listening/                     # Latihan Listening, Audio Player, Soal, Transkrip
-    ├── profile/                       # Profil Pengguna & Konfirmasi Keluar
-    ├── reading/                       # Pengaturan, Cerita, Vocab Sheet, Kuis, Hasil
-    ├── speaking/                      # Izin Mic, Chat Suara AI, Recording, Audio
-    └── writing/                       # Input Teks, Loading, Review Koreksi Grammar
+├── main.dart                          # Entry point: ProviderScope + EnglishDayApp
+├── app.dart                           # MaterialApp (tema, halaman awal)
+├── core/                              # Dipakai semua fitur
+│   ├── config/app_info.dart           # Nama aplikasi, sekolah, versi
+│   ├── theme/app_theme.dart           # Design tokens (AppColors, AppText/GoogleFonts, AppTheme)
+│   └── widgets/
+│       ├── answer_widgets.dart        # AnswerOption, AnswerFeedback, ChatBubble, SoundWave
+│       ├── app_button.dart            # AppButton (primary, secondary, danger, loading), AppTextAction
+│       ├── app_text_field.dart        # AppTextField, FieldError, AppChoiceChip
+│       ├── common.dart                # AppScaffold, BottomActionBar, AppCard, StatusBanner, Skeleton, InfoStateView
+│       └── lined_paper.dart           # LinedPaper, LinedText, CorrectionText (kertas bergaris)
+├── features/                          # Satu folder per fitur, satu file per layar
+│   ├── auth/presentation/             # splash, login, register
+│   ├── dashboard/presentation/        # dashboard (+ sheet sesi habis)
+│   ├── writing/presentation/          # input, hasil koreksi
+│   ├── reading/presentation/          # pengaturan, cerita, kuis, hasil
+│   ├── listening/presentation/        # listening (intro → audio → soal → hasil)
+│   ├── speaking/presentation/         # izin mikrofon, percakapan
+│   ├── profile/presentation/          # profil & konfirmasi keluar
+│   └── system/presentation/           # offline
+└── dev/                               # Alat developer, BUKAN untuk pengguna akhir
+    ├── dummy_data.dart                # Data dummy sementara (sampai fitur tersambung ke API)
+    ├── gallery_screen.dart            # Galeri 58 state desain (debug only)
+    └── showcase/                      # Katalog komponen & banner AI
+```
+
+Aturan untuk anggota tim:
+
+- Layar baru masuk ke `features/<fitur>/presentation/`. Komponen yang dipakai lebih
+  dari satu fitur masuk ke `core/widgets/`.
+- Saat sebuah fitur disambungkan ke API, tambahkan `features/<fitur>/data/` (model +
+  repository) dan `features/<fitur>/application/` (provider/controller Riverpod).
+- Kode di `features/` yang masih meng-import `dev/dummy_data.dart` berarti **belum
+  tersambung ke API**. Cek sisa pekerjaan dengan `grep -rl "dev/dummy_data" lib/features`.
+- Pakai import `package:english_day/...` (bukan relatif) supaya aman saat file dipindah.
+
+## 🧪 Test
+
+```bash
+flutter analyze
+flutter test        # termasuk render seluruh 58 state galeri (test/gallery_test.dart)
 ```

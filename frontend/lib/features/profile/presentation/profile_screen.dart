@@ -1,11 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../../data/dummy_data.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/app_button.dart';
-import '../../widgets/common.dart';
-import '../auth/auth_screens.dart';
-import '../gallery/gallery_screen.dart';
+import 'package:english_day/core/config/app_info.dart';
+import 'package:english_day/core/theme/app_theme.dart';
+import 'package:english_day/core/widgets/app_button.dart';
+import 'package:english_day/core/widgets/common.dart';
+import 'package:english_day/dev/dummy_data.dart';
+import 'package:english_day/dev/gallery_screen.dart';
+import 'package:english_day/features/auth/presentation/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.showLogoutConfirm = false});
@@ -107,8 +109,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _ProfileItem(
                   icon: Icons.info_outline,
                   label: 'Tentang aplikasi',
-                  onTap: () => Navigator.of(context)
-                      .push(MaterialPageRoute(builder: (_) => const GalleryScreen())),
+                  // The design gallery is a developer tool: debug builds only.
+                  onTap: () => kDebugMode
+                      ? Navigator.of(context)
+                          .push(MaterialPageRoute(builder: (_) => const GalleryScreen()))
+                      : showAboutDialog(
+                          context: context,
+                          applicationName: AppInfo.appName,
+                          applicationVersion: AppInfo.version,
+                          applicationLegalese: AppInfo.school,
+                        ),
                 ),
               ],
             ),
@@ -148,4 +158,3 @@ class _ProfileItem extends StatelessWidget {
     );
   }
 }
-
