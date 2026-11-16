@@ -1,20 +1,36 @@
 import 'package:flutter/material.dart';
 
-import '../../data/dummy_data.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/common.dart';
-import '../auth/auth_screens.dart';
-import '../dashboard/dashboard_screen.dart';
-import '../global/global_screens.dart';
-import '../listening/listening_screen.dart';
-import '../profile/profile_screen.dart';
-import '../reading/reading_screens.dart';
-import '../speaking/speaking_screens.dart';
-import '../writing/writing_screens.dart';
+import 'package:english_day/core/config/app_info.dart';
+import 'package:english_day/core/theme/app_theme.dart';
+import 'package:english_day/core/widgets/common.dart';
+import 'package:english_day/dev/dummy_data.dart';
+import 'package:english_day/dev/showcase/ai_status_showcase_screen.dart';
+import 'package:english_day/dev/showcase/answers_showcase_screen.dart';
+import 'package:english_day/dev/showcase/buttons_showcase_screen.dart';
+import 'package:english_day/dev/showcase/inputs_showcase_screen.dart';
+import 'package:english_day/features/auth/presentation/login_screen.dart';
+import 'package:english_day/features/auth/presentation/register_screen.dart';
+import 'package:english_day/features/auth/presentation/splash_screen.dart';
+import 'package:english_day/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:english_day/features/listening/presentation/listening_screen.dart';
+import 'package:english_day/features/profile/presentation/profile_screen.dart';
+import 'package:english_day/features/reading/presentation/reading_quiz_screen.dart';
+import 'package:english_day/features/reading/presentation/reading_result_screen.dart';
+import 'package:english_day/features/reading/presentation/reading_settings_screen.dart';
+import 'package:english_day/features/reading/presentation/reading_story_screen.dart';
+import 'package:english_day/features/speaking/presentation/mic_permission_screen.dart';
+import 'package:english_day/features/speaking/presentation/speaking_screen.dart';
+import 'package:english_day/features/system/presentation/offline_screen.dart';
+import 'package:english_day/features/writing/presentation/writing_input_screen.dart';
+import 'package:english_day/features/writing/presentation/writing_result_screen.dart';
 
 /// Galeri semua layar & state sesuai file desain, untuk review slicing.
 class GalleryScreen extends StatelessWidget {
   const GalleryScreen({super.key});
+
+  /// Every screen/state in the gallery, so tests can render each one.
+  @visibleForTesting
+  static Map<String, List<(String, WidgetBuilder)>> get entries => _groups;
 
   static final Map<String, List<(String, WidgetBuilder)>> _groups = {
     'Akun': [
@@ -265,4 +281,3 @@ class _FrozenLogin extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const LoginScreen(initialState: LoginState.loading);
 }
-

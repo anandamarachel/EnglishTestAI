@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
+import 'package:english_day/core/theme/app_theme.dart';
 
 /// Input teks sesuai "Komponen · input dan pilihan".
 class AppTextField extends StatefulWidget {
@@ -160,4 +160,3 @@ class AppChoiceChip extends StatelessWidget {
     );
   }
 }
-

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'screens/auth/auth_screens.dart';
-import 'theme/app_theme.dart';
+import 'package:english_day/app.dart';
+import 'package:english_day/core/theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,21 +13,6 @@ void main() {
     systemNavigationBarColor: AppColors.background,
     systemNavigationBarIconBrightness: Brightness.dark,
   ));
-  runApp(const EnglishDayApp());
-}
-
-class EnglishDayApp extends StatelessWidget {
-  const EnglishDayApp({super.key, this.home});
-
-  final Widget? home;
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'English Day',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      home: home ?? const SplashScreen(),
-    );
-  }
+  // ProviderScope holds every Riverpod provider (API client, auth session, controllers).
+  runApp(const ProviderScope(child: EnglishDayApp()));
 }

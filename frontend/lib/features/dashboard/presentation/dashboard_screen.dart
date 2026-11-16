@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../../data/dummy_data.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/app_button.dart';
-import '../../widgets/common.dart';
-import '../auth/auth_screens.dart';
-import '../listening/listening_screen.dart';
-import '../profile/profile_screen.dart';
-import '../reading/reading_screens.dart';
-import '../speaking/speaking_screens.dart';
-import '../writing/writing_screens.dart';
+import 'package:english_day/core/theme/app_theme.dart';
+import 'package:english_day/core/widgets/app_button.dart';
+import 'package:english_day/core/widgets/common.dart';
+import 'package:english_day/dev/dummy_data.dart';
+import 'package:english_day/features/auth/presentation/login_screen.dart';
+import 'package:english_day/features/listening/presentation/listening_screen.dart';
+import 'package:english_day/features/profile/presentation/profile_screen.dart';
+import 'package:english_day/features/reading/presentation/reading_settings_screen.dart';
+import 'package:english_day/features/reading/presentation/reading_story_screen.dart';
+import 'package:english_day/features/speaking/presentation/mic_permission_screen.dart';
+import 'package:english_day/features/writing/presentation/writing_input_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
@@ -223,4 +224,3 @@ Future<void> showSessionExpiredSheet(BuildContext context) {
     ),
   );
 }
-

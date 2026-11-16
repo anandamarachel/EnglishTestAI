@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../data/dummy_data.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/answer_widgets.dart';
-import '../../widgets/app_button.dart';
-import '../../widgets/common.dart';
+import 'package:english_day/core/theme/app_theme.dart';
+import 'package:english_day/core/widgets/answer_widgets.dart';
+import 'package:english_day/core/widgets/app_button.dart';
+import 'package:english_day/core/widgets/common.dart';
+import 'package:english_day/dev/dummy_data.dart';
 
 enum ListeningPhase { intro, loading, slow, practice, audioError, result }
 
