@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     postgres_db: str = Field(default="english_practice", min_length=1)
     postgres_user: str = Field(default="english_app", min_length=1)
     postgres_password: SecretStr = Field(min_length=1)
+    # Per process (API and worker each have one). Keep (size + overflow) x processes below
+    # PostgreSQL max_connections (default 100). Requests wait pool_timeout for a free
+    # connection before failing with 500, so a too-small pool breaks under load.
+    db_pool_size: int = Field(default=10, ge=1, le=100)
+    db_max_overflow: int = Field(default=10, ge=0, le=100)
+    db_pool_timeout_seconds: float = Field(default=15, gt=0)
 
     # Authentication. No default secret: the app refuses to start without one.
     jwt_secret: SecretStr = Field(min_length=32)
@@ -61,11 +67,41 @@ class Settings(BaseSettings):
     max_audio_bytes: int = Field(default=10 * 1024 * 1024, ge=1)
     max_audio_duration_ms: int = Field(default=120_000, ge=1_000)
 
-    # AI provider. No model is chosen yet. "fake" is a deterministic stand-in for
-    # development/tests; "none" leaves jobs queued (the worker refuses to start).
+    # AI provider. "fake" is a deterministic stand-in for development/tests; "router"
+    # is the real engine (9router, an OpenAI-compatible gateway, plus Edge TTS); "none"
+    # leaves jobs queued (the worker refuses to start).
     # None picks "fake" outside production and "none" in production.
-    ai_provider: Literal["none", "fake"] | None = None
+    ai_provider: Literal["none", "fake", "router"] | None = None
+    # Bounds one whole job execution (the engine may retry a model call inside it).
     ai_request_timeout_seconds: float = Field(default=120, gt=0)
+
+    # 9router (AI_PROVIDER=router). Model names are exactly as GET {base}/models lists
+    # them (a provider model such as gemini/gemini-3.8-flash, or a 9router combo name).
+    router_base_url: str = "https://9router.lecimangga.my.id/v1"
+    router_api_key: SecretStr | None = None
+    router_model_generate: str = "gemini/gemini-3.8-flash"  # exercises and prompts
+    router_model_grade: str | None = None  # evaluations; defaults to the generate model
+    router_model_chat: str | None = None  # Speaking conversation replies
+    router_model_stt: str | None = None  # transcription; must accept audio input
+    # Sends the student's recordings to the grade model so it can judge fluency and
+    # pronunciation. Off until that model's audio assessment has been checked by a human.
+    router_assess_audio: bool = False
+    # Model calls in flight at once per process (worker jobs share it), and how many times a
+    # call waits and retries after a rate limit (429) or overload (503) before the job fails.
+    router_max_concurrency: int = Field(default=4, ge=1, le=64)
+    router_rate_limit_retries: int = Field(default=4, ge=0, le=10)
+    router_audio_eval_max_bytes: int = Field(default=15 * 1024 * 1024, ge=1024)
+    # Edge TTS: abstract voice keys (LISTENING_VOICES) mapped to real voices.
+    tts_voice_map: dict[str, str] = Field(
+        default_factory=lambda: {
+            "female_1": "en-GB-SoniaNeural",
+            "male_1": "en-GB-RyanNeural",
+            "female_2": "en-AU-NatashaNeural",
+            "male_2": "en-US-GuyNeural",
+        },
+        min_length=1,
+    )
+    tts_rate: str = "-5%"
 
     # Durable job queue and worker.
     job_max_attempts: int = Field(default=3, ge=1, le=10)
@@ -125,6 +161,8 @@ class Settings(BaseSettings):
             self.ai_provider = "none" if self.app_env == "production" else "fake"
         if self.app_env == "production" and self.ai_provider == "fake":
             raise ValueError("The fake AI engine is for development and tests only.")
+        if self.ai_provider == "router" and self.router_api_key is None:
+            raise ValueError("AI_PROVIDER=router needs ROUTER_API_KEY.")
         return self
 
     @model_validator(mode="after")

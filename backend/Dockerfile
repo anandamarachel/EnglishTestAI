@@ -10,6 +10,9 @@ RUN uv sync --frozen --no-dev --no-install-project
 FROM python:3.14-slim-bookworm AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PATH="/app/.venv/bin:$PATH"
 WORKDIR /app
+# ffmpeg decodes Edge TTS audio into the PCM WAV the API stores (AI_PROVIDER=router).
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app
 # Writable runtime dirs (private media, development reset outbox); code stays root-owned.
 RUN mkdir -p /app/var/media && chown -R app:app /app/var

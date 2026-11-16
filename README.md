@@ -52,7 +52,7 @@ topics and personas loaded. Your data is kept between runs.
 - **Try every endpoint** in Swagger UI (`/docs`): register, log in, press *Authorize* and
   paste the `access_token`. The full contract is in [docs/api/](docs/api/README.md)
   (OpenAPI file and a Postman collection).
-- **AI is a stand-in.** Generated exercises, transcripts, replies and scores are
+- **AI is a stand-in by default** (see *Using real AI* below). Generated exercises, transcripts, replies and scores are
   predictable placeholders so you can build every screen; they are not real assessment.
   Listening and Speaking audio is a short beep per line followed by silence.
 - **AI work is asynchronous.** Creating an exercise or submitting returns a `job`; poll
@@ -65,6 +65,34 @@ topics and personas loaded. Your data is kept between runs.
   (byte ranges are supported for seeking).
 - **Forgot password:** after requesting a reset, run `make reset-mail` to see the token.
 - **Errors** always look like `{code, message, request_id, retryable, details}`.
+
+### Using real AI (9router)
+
+By default the backend uses the development stand-in engine. To use real models through
+9router (any OpenAI-compatible gateway works), add to
+`backend/.env` and run `make restart`:
+
+```dotenv
+AI_PROVIDER=router
+ROUTER_BASE_URL=https://9router.lecimangga.my.id/v1   # or http://<LAN-IP>:20128/v1
+ROUTER_API_KEY=sk-...
+ROUTER_MODEL_GENERATE=gemini/gemini-3.8-flash         # exercises (or a 9router combo name)
+ROUTER_MODEL_GRADE=gemini/gemini-3.1-pro-preview      # writing/speaking/short-answer grading
+ROUTER_MODEL_CHAT=gemini/gemini-3.5-flash-lite        # Speaking partner replies
+ROUTER_MODEL_STT=gemini/gemini-3.5-flash-lite         # transcription (model must accept audio)
+AI_REQUEST_TIMEOUT_SECONDS=600
+```
+
+- Text, transcription and grading go through 9router; Listening and Speaking voices use
+  Microsoft Edge TTS (free, needs internet) and `ffmpeg` (installed in the Docker image).
+- Model names are exactly as `GET {ROUTER_BASE_URL}/models` lists them.
+- Fluency and Pronunciation stay *not assessed* unless `ROUTER_ASSESS_AUDIO=true`, which sends
+  the recordings to the grade model. Keep it off until a human has checked its judgments.
+- Results are still validated by each module; when the model returns something unusable the
+  engine asks it again, and a job that still fails is reported with a retryable error code
+  (`AI_OUTPUT_INVALID`, `AI_TIMEOUT`, `AI_UNAVAILABLE`, `AI_RATE_LIMITED`, `TTS_UNAVAILABLE`, ...).
+- The engine lives in `backend/app/ai/router.py`; tests with a mocked gateway are in
+  `backend/tests/test_router_engine.py`.
 
 ### If something goes wrong
 
