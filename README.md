@@ -7,12 +7,13 @@ Reading, Listening, Speaking).
 .
 ├── backend/    # FastAPI server, PostgreSQL, AI worker (Docker)
 ├── frontend/   # Flutter mobile app
-└── docs/       # Backend design, database schema, API contract
+└── docs/       # Backend design, database schema, API contract, UI designs (docs/design/)
 ```
 
 ## Frontend (Flutter)
 
-Make sure the Flutter SDK is installed.
+Use **Flutter 3.41.x (stable)** so `pubspec.lock` stays the same for everyone
+(check with `flutter --version`).
 
 ```sh
 cd frontend

@@ -1,6 +1,6 @@
 # English Day · SMAN 10 Gowa (Mobile EduTech App)
 
-Implementasi Frontend Flutter lengkap untuk aplikasi pembelajaran bahasa Inggris **English Day** SMAN 10 Gowa, dislicing secara presisi 1:1 dari 58 desain visual pada folder `UI Design - Mobile EduTech App`.
+Implementasi Frontend Flutter lengkap untuk aplikasi pembelajaran bahasa Inggris **English Day** SMAN 10 Gowa, dislicing secara presisi 1:1 dari 58 desain visual pada folder [`docs/design/`](../docs/design/) di root repo.
 
 Seluruh fungsionalitas menggunakan data dummy interaktif tanpa backend.
 
@@ -81,11 +81,12 @@ Untuk mempermudah verifikasi dan review slicing 1:1 terhadap seluruh 58 file gam
 
 ## 🚀 Cara Menjalankan
 
-Pastikan Flutter SDK sudah terpasang:
+Gunakan **Flutter 3.41.x (stable)** agar `pubspec.lock` sama untuk semua anggota tim
+(cek dengan `flutter --version`).
 
 ```bash
-# Masuk ke direktori project
-cd D:\OPENCODE3\FE-Compro\english_day
+# Dari root repo, masuk ke folder frontend
+cd frontend
 
 # Ambil dependencies
 flutter pub get
