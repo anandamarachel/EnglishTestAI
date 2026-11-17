@@ -44,7 +44,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   /// Practice screens are not connected to the API yet: open the skill's screen.
   // TODO(api): pass resume.attemptId once each practice module loads real attempts.
   Widget _resumePage(AttemptSummary resume) => switch (resume.skill) {
-        'writing' => const WritingInputScreen(),
+        'writing' => WritingInputScreen(resumeAttemptId: resume.attemptId),
         'listening' => const ListeningScreen(),
         'speaking' => const MicPermissionScreen(),
         _ => const ReadingStoryScreen(),

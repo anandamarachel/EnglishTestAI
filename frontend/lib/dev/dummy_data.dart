@@ -1,4 +1,4 @@
-import 'package:english_day/core/widgets/lined_paper.dart';
+import 'package:english_day/features/writing/data/writing_result.dart';
 
 /// Semua data dummy aplikasi (tanpa backend).
 class DummyUser {
@@ -14,7 +14,6 @@ class DummyUser {
 class WritingDummy {
   static const sampleInput = 'Yesterday I go to school with my friend and we was late.';
   static const correctedText = 'Yesterday I went to school with my friend and we were late.';
-  static const maxChars = 500;
 
   static const longInput =
       'Last Friday, our class visited a museum in Gowa to learn about local history. '
@@ -24,42 +23,37 @@ class WritingDummy {
       'details about the paintings, the friendly guide, and the quiet garden outside. '
       'Next time, I will choose the most important ideas first so my writing is shorter.';
 
-  static const tokens = <CorrectionToken>[
-    CorrectionToken('Yesterday'),
-    CorrectionToken('I'),
-    CorrectionToken('go', correction: 'went', ruleId: 'past'),
-    CorrectionToken('to'),
-    CorrectionToken('school'),
-    CorrectionToken('with'),
-    CorrectionToken('my'),
-    CorrectionToken('friend'),
-    CorrectionToken('and'),
-    CorrectionToken('we'),
-    CorrectionToken('was', correction: 'were', ruleId: 'agreement'),
-    CorrectionToken('late.'),
-  ];
+  /// Same shape as the backend evaluation (spans in code points of [sampleInput]).
+  static final result = WritingResult(
+    text: sampleInput,
+    correctedText: correctedText,
+    corrections: const [
+      WritingCorrection(
+        id: 'past',
+        start: 12,
+        end: 14,
+        original: 'go',
+        replacement: 'went',
+        title: 'Bentuk lampau (past tense)',
+        explanation: "Kata 'yesterday' menunjukkan waktu lampau, jadi 'go' diganti 'went'.",
+        example: 'Last week, she went to the library.',
+      ),
+      WritingCorrection(
+        id: 'agreement',
+        start: 47,
+        end: 50,
+        original: 'was',
+        replacement: 'were',
+        title: 'Kesesuaian subjek (were/was)',
+        explanation:
+            "Subjek 'we' adalah jamak, jadi bentuk lampau 'be' yang tepat adalah 'were', bukan 'was'.",
+        example: 'They were happy after the game.',
+      ),
+    ],
+  );
 
-  static const rules = <String, GrammarRule>{
-    'past': GrammarRule(
-      title: 'Bentuk lampau (past tense)',
-      explanation:
-          "Kata 'yesterday' menunjukkan waktu lampau, jadi 'go' diganti 'went'.",
-      example: 'Last week, she went to the library.',
-    ),
-    'agreement': GrammarRule(
-      title: 'Kesesuaian subjek (were/was)',
-      explanation:
-          "Subjek 'we' adalah jamak, jadi bentuk lampau 'be' yang tepat adalah 'were', bukan 'was'.",
-      example: 'They were happy after the game.',
-    ),
-  };
-}
-
-class GrammarRule {
-  const GrammarRule({required this.title, required this.explanation, required this.example});
-  final String title;
-  final String explanation;
-  final String example;
+  static final correctResult =
+      WritingResult(text: correctedText, correctedText: correctedText, corrections: const []);
 }
 
 // ---------------------------------------------------------------- Reading

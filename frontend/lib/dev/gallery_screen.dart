@@ -52,11 +52,7 @@ class GalleryScreen extends StatelessWidget {
       ('sesi habis', (_) => const DemoScope(child: DashboardScreen(showSessionExpired: true))),
       (
         'teks disalin',
-        (_) => const WritingResultScreen(
-              text: WritingDummy.sampleInput,
-              startLoading: false,
-              autoCopy: true,
-            )
+        (_) => WritingResultScreen(result: WritingDummy.result, autoCopy: true)
       ),
     ],
     'Izin mikrofon': [
@@ -93,20 +89,19 @@ class GalleryScreen extends StatelessWidget {
       ('input limit', (_) => const WritingInputScreen(initialText: WritingDummy.longInput)),
       (
         'hasil loading',
-        (_) => const WritingResultScreen(text: WritingDummy.sampleInput)
+        (_) => const WritingResultScreen(result: null)
       ),
       (
         'hasil corrections',
-        (_) => const WritingResultScreen(text: WritingDummy.sampleInput, startLoading: false)
+        (_) => WritingResultScreen(result: WritingDummy.result)
       ),
       (
         'hasil sheet',
-        (_) => const WritingResultScreen(
-            text: WritingDummy.sampleInput, startLoading: false, openRuleSheet: true)
+        (_) => WritingResultScreen(result: WritingDummy.result, openRuleSheet: true)
       ),
       (
         'hasil correct',
-        (_) => const WritingResultScreen(text: WritingDummy.correctedText, startLoading: false)
+        (_) => WritingResultScreen(result: WritingDummy.correctResult)
       ),
     ],
     'Reading': [
