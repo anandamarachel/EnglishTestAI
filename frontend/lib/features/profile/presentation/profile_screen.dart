@@ -1,29 +1,42 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:english_day/core/config/app_info.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/app_button.dart';
 import 'package:english_day/core/widgets/common.dart';
-import 'package:english_day/dev/dummy_data.dart';
 import 'package:english_day/dev/gallery_screen.dart';
+import 'package:english_day/features/auth/application/session_controller.dart';
 import 'package:english_day/features/auth/presentation/login_screen.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key, this.showLogoutConfirm = false});
+
+  /// Only the design gallery opens the logout sheet directly.
   final bool showLogoutConfirm;
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   void initState() {
     super.initState();
     if (widget.showLogoutConfirm) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _confirmLogout());
     }
+  }
+
+  Future<void> _logout(BuildContext sheetContext) async {
+    final navigator = Navigator.of(sheetContext);
+    // Revokes the session on the server when reachable; always logs out locally.
+    await ref.read(sessionControllerProvider.notifier).logout();
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
   }
 
   void _confirmLogout() {
@@ -39,13 +52,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 16),
             Text('Kamu perlu masuk lagi untuk melanjutkan latihan.', style: AppText.body),
             const SizedBox(height: 24),
-            AppButton.danger(
-              label: 'Keluar',
-              onPressed: () => Navigator.of(ctx).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (_) => false,
-              ),
-            ),
+            AppButton.danger(label: 'Keluar', onPressed: () => _logout(ctx)),
             const SizedBox(height: 24),
             AppButton.secondary(label: 'Batal', onPressed: () => Navigator.pop(ctx)),
           ],
@@ -56,6 +63,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(currentUserProvider);
     return AppScaffold(
       title: 'Profil',
       bottom: AppButton.danger(label: 'Keluar', onPressed: _confirmLogout),
@@ -69,14 +77,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               height: 72,
               decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle),
               alignment: Alignment.center,
-              child: Text(DummyUser.initials,
+              child: Text(user?.initials ?? '',
                   style: AppText.sans(size: 22, weight: FontWeight.w700, color: AppColors.primary)),
             ),
           ),
           const SizedBox(height: 16),
-          Text(DummyUser.name, style: AppText.h2),
+          Text(user?.displayName ?? '', style: AppText.h2),
           const SizedBox(height: 12),
-          Text(DummyUser.email, style: AppText.body),
+          Text(user?.email ?? '', style: AppText.body),
           const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerLeft,
@@ -87,7 +95,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(color: AppColors.primary),
               ),
-              child: Text(DummyUser.role,
+              child: Text(user?.roleLabel ?? '',
                   style: AppText.sans(size: 15, weight: FontWeight.w600, color: AppColors.primary)),
             ),
           ),
@@ -99,12 +107,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _ProfileItem(
                   icon: Icons.person_outline,
                   label: 'Ubah nama',
-                  onTap: () => showAppSnack(context, 'Fitur ubah nama (dummy).'),
+                  // TODO(api): PATCH /users/me once the edit-name screen is designed.
+                  onTap: () => showAppSnack(context, 'Fitur ubah nama segera hadir.'),
                 ),
                 _ProfileItem(
                   icon: Icons.lock_outline,
                   label: 'Ubah password',
-                  onTap: () => showAppSnack(context, 'Fitur ubah password (dummy).'),
+                  // TODO(api): POST /auth/password/change once the screen is designed.
+                  onTap: () => showAppSnack(context, 'Fitur ubah password segera hadir.'),
                 ),
                 _ProfileItem(
                   icon: Icons.info_outline,

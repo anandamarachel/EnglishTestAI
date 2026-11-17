@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:english_day/core/network/api_exception.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/app_button.dart';
 import 'package:english_day/core/widgets/common.dart';
-import 'package:english_day/dev/dummy_data.dart';
+import 'package:english_day/features/auth/application/session_controller.dart';
 import 'package:english_day/features/auth/presentation/login_screen.dart';
+import 'package:english_day/features/dashboard/data/dashboard.dart';
 import 'package:english_day/features/listening/presentation/listening_screen.dart';
 import 'package:english_day/features/profile/presentation/profile_screen.dart';
 import 'package:english_day/features/reading/presentation/reading_settings_screen.dart';
@@ -12,21 +15,18 @@ import 'package:english_day/features/reading/presentation/reading_story_screen.d
 import 'package:english_day/features/speaking/presentation/mic_permission_screen.dart';
 import 'package:english_day/features/writing/presentation/writing_input_screen.dart';
 
-class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({
-    super.key,
-    this.hasProgress = true,
-    this.showSessionExpired = false,
-  });
+class DashboardScreen extends ConsumerStatefulWidget {
+  const DashboardScreen({super.key, this.showSessionExpired = false});
 
-  final bool hasProgress;
+  /// Only the design gallery opens the "session ended" sheet directly; in the app it
+  /// is shown by EnglishDayApp when the server ends the session.
   final bool showSessionExpired;
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   void initState() {
     super.initState();
@@ -35,14 +35,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _push(Widget page) =>
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+  /// Opens a page and reloads the dashboard when the user comes back (progress changed).
+  Future<void> _push(Widget page) async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+    if (mounted) ref.invalidate(dashboardProvider);
+  }
+
+  /// Practice screens are not connected to the API yet: open the skill's screen.
+  // TODO(api): pass resume.attemptId once each practice module loads real attempts.
+  Widget _resumePage(AttemptSummary resume) => switch (resume.skill) {
+        'writing' => const WritingInputScreen(),
+        'listening' => const ListeningScreen(),
+        'speaking' => const MicPermissionScreen(),
+        _ => const ReadingStoryScreen(),
+      };
 
   @override
   Widget build(BuildContext context) {
+    final dashboard = ref.watch(dashboardProvider);
+    final user = dashboard.valueOrNull?.user ?? ref.watch(currentUserProvider);
+    final resume = dashboard.valueOrNull?.resumeAttempt;
     return Scaffold(
       body: SafeArea(
-        child: ListView(
+        child: RefreshIndicator(
+          color: AppColors.primary,
+          onRefresh: () => ref.refresh(dashboardProvider.future).then((_) {}, onError: (_) {}),
+          child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
           children: [
             Row(
@@ -52,7 +71,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Halo, ${DummyUser.firstName}', style: AppText.display),
+                      Text(user == null ? 'Halo' : 'Halo, ${user.firstName}',
+                          style: AppText.display),
                       const SizedBox(height: 4),
                       Text('Mau latihan apa hari ini?',
                           style: AppText.body.copyWith(fontSize: 17)),
@@ -71,7 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         width: 44,
                         height: 44,
                         child: Center(
-                          child: Text(DummyUser.initials,
+                          child: Text(user?.initials ?? '',
                               style: AppText.sans(
                                   size: 15, weight: FontWeight.w700, color: AppColors.primary)),
                         ),
@@ -82,7 +102,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            if (widget.hasProgress) ...[
+            if (dashboard.hasError && !dashboard.isLoading && !_isSessionEnded(dashboard.error)) ...[
+              StatusBanner(
+                type: BannerType.error,
+                message: _errorText(dashboard.error),
+                actionLabel: 'Coba lagi',
+                onAction: () => ref.invalidate(dashboardProvider),
+              ),
+              const SizedBox(height: 28),
+            ],
+            if (resume != null) ...[
               AppCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,12 +120,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         style: AppText.sans(
                             size: 15, weight: FontWeight.w500, color: AppColors.textSecondary)),
                     const SizedBox(height: 12),
-                    Text('Reading · ${ReadingDummy.storyTitle}',
+                    Text('${resume.skillLabel} · ${resume.title}',
                         style: AppText.sans(size: 19, weight: FontWeight.w600)),
                     const SizedBox(height: 12),
                     AppButton.secondary(
                       label: 'Lanjutkan',
-                      onPressed: () => _push(const ReadingStoryScreen()),
+                      onPressed: () => _push(_resumePage(resume)),
                     ),
                   ],
                 ),
@@ -138,10 +167,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
               onTap: () => _push(const ListeningScreen()),
             ),
           ],
+          ),
         ),
       ),
     );
   }
+
+  /// Shown by the global session-expired sheet instead (see app.dart).
+  static bool _isSessionEnded(Object? error) => error is ApiException && error.isSessionEnded;
+
+  static String _errorText(Object? error) => error is ApiException
+      ? error.userMessage
+      : 'Gagal memuat dashboard. Coba lagi dalam beberapa saat.';
 }
 
 class _MenuTile extends StatelessWidget {
@@ -203,6 +240,7 @@ Future<void> showSessionExpiredSheet(BuildContext context) {
     context: context,
     isDismissible: false,
     enableDrag: false,
+    showDragHandle: true, // as in the design; enableDrag: false would hide it
     builder: (ctx) => Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Column(

@@ -94,13 +94,46 @@ cd frontend
 # Ambil dependencies
 flutter pub get
 
-# Jalankan di Chrome (Web) atau Emulator Android/iOS / Windows desktop
-flutter run -d chrome
-# atau
-flutter run -d windows
-# atau
+# Jalankan di Emulator Android/iOS / Windows desktop
 flutter run
+# atau di Chrome (lihat catatan CORS di bawah)
+flutter run -d chrome --web-port 5000
 ```
+
+### Menghubungkan ke backend
+
+Login, register, dashboard dan profil memakai API backend (`/api/v1`). Jalankan backend
+dulu (butuh **Docker Desktop**), lihat [README root](../README.md):
+
+```bash
+cd backend
+make start
+```
+
+Alamat API dipilih otomatis ([`lib/core/config/api_config.dart`](lib/core/config/api_config.dart)):
+
+| Menjalankan di | Alamat API |
+|---|---|
+| Emulator Android | `http://10.0.2.2:8000/api/v1` |
+| Chrome, Windows, simulator iOS | `http://localhost:8000/api/v1` |
+| HP sungguhan / server lain | `flutter run --dart-define=API_BASE_URL=http://192.168.1.20:8000/api/v1` |
+
+**Chrome (CORS):** browser menolak request ke backend kecuali origin-nya diizinkan.
+Tambahkan origin Flutter web ke `backend/.env` (konfigurasi lokal, tidak di-commit),
+lalu `make restart`:
+
+```env
+CORS_ORIGINS=["http://localhost:5000"]
+```
+
+dan selalu jalankan Chrome dengan port yang sama: `flutter run -d chrome --web-port 5000`.
+
+**HP sungguhan:** di `backend/.env` set `API_BIND=0.0.0.0` dan tambahkan IP laptop ke
+`ALLOWED_HOSTS` (lihat README root), lalu pakai `--dart-define` seperti tabel di atas.
+
+Tanpa backend, aplikasi menampilkan layar **"Tidak ada koneksi internet"** saat ada sesi
+tersimpan, atau pesan error di layar login. Galeri desain (Profil → Tentang aplikasi)
+tetap bisa dibuka karena memakai data demo.
 
 ---
 
@@ -112,9 +145,16 @@ Kode disusun **per fitur**. State management memakai **Riverpod**
 ```
 lib/
 ├── main.dart                          # Entry point: ProviderScope + EnglishDayApp
-├── app.dart                           # MaterialApp (tema, halaman awal)
+├── app.dart                           # MaterialApp + sheet "sesi berakhir" global
 ├── core/                              # Dipakai semua fitur
-│   ├── config/app_info.dart           # Nama aplikasi, sekolah, versi
+│   ├── config/
+│   │   ├── api_config.dart            # Alamat API (otomatis per platform / --dart-define)
+│   │   └── app_info.dart              # Nama aplikasi, sekolah, versi
+│   ├── network/
+│   │   ├── api_client.dart            # dio: token, refresh antre (single-flight), Idempotency-Key
+│   │   ├── api_exception.dart         # Error backend {code, message, ...} + pesan Indonesia
+│   │   └── providers.dart             # apiClientProvider, tokenStorageProvider
+│   ├── storage/token_storage.dart     # Simpan token (flutter_secure_storage)
 │   ├── theme/app_theme.dart           # Design tokens (AppColors, AppText/GoogleFonts, AppTheme)
 │   └── widgets/
 │       ├── answer_widgets.dart        # AnswerOption, AnswerFeedback, ChatBubble, SoundWave
@@ -123,15 +163,21 @@ lib/
 │       ├── common.dart                # AppScaffold, BottomActionBar, AppCard, StatusBanner, Skeleton, InfoStateView
 │       └── lined_paper.dart           # LinedPaper, LinedText, CorrectionText (kertas bergaris)
 ├── features/                          # Satu folder per fitur, satu file per layar
-│   ├── auth/presentation/             # splash, login, register
-│   ├── dashboard/presentation/        # dashboard (+ sheet sesi habis)
+│   ├── auth/                          # ✅ tersambung API
+│   │   ├── data/                      # User, AuthRepository (/auth/*, /users/me)
+│   │   ├── application/               # SessionController (status login seluruh app)
+│   │   └── presentation/              # splash, login, register
+│   ├── dashboard/                     # ✅ tersambung API
+│   │   ├── data/dashboard.dart        # DashboardData, dashboardProvider (GET /dashboard)
+│   │   └── presentation/              # dashboard (+ sheet sesi habis)
 │   ├── writing/presentation/          # input, hasil koreksi
 │   ├── reading/presentation/          # pengaturan, cerita, kuis, hasil
 │   ├── listening/presentation/        # listening (intro → audio → soal → hasil)
 │   ├── speaking/presentation/         # izin mikrofon, percakapan
-│   ├── profile/presentation/          # profil & konfirmasi keluar
+│   ├── profile/presentation/          # ✅ profil & keluar (ubah nama/password: belum)
 │   └── system/presentation/           # offline
 └── dev/                               # Alat developer, BUKAN untuk pengguna akhir
+    ├── demo_scope.dart                # Akun & dashboard demo untuk galeri (tanpa server)
     ├── dummy_data.dart                # Data dummy sementara (sampai fitur tersambung ke API)
     ├── gallery_screen.dart            # Galeri 58 state desain (debug only)
     └── showcase/                      # Katalog komponen & banner AI

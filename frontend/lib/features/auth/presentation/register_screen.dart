@@ -1,23 +1,27 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:english_day/core/network/api_exception.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/app_button.dart';
 import 'package:english_day/core/widgets/app_text_field.dart';
 import 'package:english_day/core/widgets/common.dart';
+import 'package:english_day/features/auth/application/session_controller.dart';
+import 'package:english_day/features/auth/data/user.dart';
 import 'package:english_day/features/dashboard/presentation/dashboard_screen.dart';
 
 // ---------------------------------------------------------------- Register
-class RegisterScreen extends StatefulWidget {
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key, this.showErrors = false});
+
+  /// Only the design gallery starts with errors shown.
   final bool showErrors;
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _name = TextEditingController();
   late final _email = TextEditingController(text: widget.showErrors ? 'rina.amelia@' : '');
   late final _password = TextEditingController(text: widget.showErrors ? '123456' : '');
@@ -42,15 +46,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Map<String, String?> _validate() {
     final emailOk = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(_email.text);
+    final name = _name.text.trim();
     return {
-      'name': _name.text.trim().isEmpty ? 'Nama lengkap wajib diisi.' : null,
+      'name': name.isEmpty
+          ? 'Nama lengkap wajib diisi.'
+          : name.length > 100
+              ? 'Nama maksimal 100 karakter.'
+              : null,
       'email': emailOk ? null : 'Masukkan email yang valid.',
-      'password': _password.text.length < 8 ? 'Password minimal 8 karakter.' : null,
+      'password': _password.text.length < 8
+          ? 'Password minimal 8 karakter.'
+          : _password.text.length > 256
+              ? 'Password maksimal 256 karakter.'
+              : null,
       'confirm': _confirm.text != _password.text || _confirm.text.isEmpty
           ? 'Konfirmasi password tidak sama.'
           : null,
     };
   }
+
+  /// Backend field names -> this form's fields, with the same Indonesian messages.
+  static const _fieldByApi = {
+    'display_name': 'name',
+    'email': 'email',
+    'password': 'password',
+    'password_confirmation': 'confirm',
+  };
+  static const _apiFieldMessage = {
+    'name': 'Nama lengkap belum sesuai.',
+    'email': 'Masukkan email yang valid.',
+    'password': 'Password belum memenuhi syarat (8–256 karakter).',
+    'confirm': 'Konfirmasi password tidak sama.',
+  };
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
@@ -58,12 +85,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _errors = errors);
     if (errors.values.any((e) => e != null)) return;
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const DashboardScreen(hasProgress: false)),
-      (_) => false,
-    );
+    try {
+      await ref.read(sessionControllerProvider.notifier).register(
+            displayName: _name.text,
+            email: _email.text,
+            password: _password.text,
+            passwordConfirmation: _confirm.text,
+            role: roleByLabel[_role]!,
+          );
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+        (_) => false,
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        if (e.code == 'EMAIL_ALREADY_REGISTERED') {
+          _errors = {..._errors, 'email': 'Email ini sudah terdaftar. Silakan masuk.'};
+        } else if (e.details.isNotEmpty) {
+          _errors = {
+            ..._errors,
+            for (final d in e.details)
+              if (_fieldByApi[d.field] case final field?) field: _apiFieldMessage[field],
+          };
+        }
+      });
+      if (e.code != 'EMAIL_ALREADY_REGISTERED' && e.details.isEmpty) {
+        showAppSnack(context, e.userMessage);
+      }
+    }
   }
 
   @override

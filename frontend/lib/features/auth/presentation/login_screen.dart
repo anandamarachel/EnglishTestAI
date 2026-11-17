@@ -1,31 +1,37 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:english_day/core/config/app_info.dart';
+import 'package:english_day/core/network/api_exception.dart';
+import 'package:english_day/core/network/providers.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/app_button.dart';
 import 'package:english_day/core/widgets/app_text_field.dart';
 import 'package:english_day/core/widgets/common.dart';
-import 'package:english_day/dev/dummy_data.dart';
+import 'package:english_day/features/auth/application/session_controller.dart';
 import 'package:english_day/features/auth/presentation/register_screen.dart';
 import 'package:english_day/features/dashboard/presentation/dashboard_screen.dart';
 
 // ------------------------------------------------------------------- Login
 enum LoginState { idle, loading, error }
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key, this.initialState = LoginState.idle});
+
+  /// Only the design gallery starts in loading/error.
   final LoginState initialState;
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  static const _wrongCredentials = 'Email atau password salah.';
+
   late LoginState _state = widget.initialState;
+  String _error = _wrongCredentials;
   late final _email = TextEditingController(
-      text: widget.initialState == LoginState.idle ? '' : DummyUser.email);
+      text: widget.initialState == LoginState.idle ? '' : 'rina.amelia@sman10gowa.sch.id');
   late final _password = TextEditingController(
       text: widget.initialState == LoginState.idle ? '' : 'salah123');
 
@@ -38,20 +44,48 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
+    if (_email.text.trim().isEmpty || _password.text.isEmpty) {
+      setState(() {
+        _state = LoginState.error;
+        _error = 'Isi email dan password terlebih dahulu.';
+      });
+      return;
+    }
     setState(() => _state = LoginState.loading);
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (!mounted) return;
-    // Dummy auth: email valid + password minimal 8 karakter dan bukan "salah123".
-    final ok = _email.text.contains('@') &&
-        _password.text.length >= 8 &&
-        _password.text != 'salah123';
-    if (ok) {
+    try {
+      await ref
+          .read(sessionControllerProvider.notifier)
+          .login(email: _email.text, password: _password.text);
+      if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const DashboardScreen()),
         (_) => false,
       );
-    } else {
-      setState(() => _state = LoginState.error);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _state = LoginState.error;
+        // Wrong password and an invalid email format both mean "check what you typed".
+        _error = e.code == 'INVALID_CREDENTIALS' || e.code == 'VALIDATION_ERROR'
+            ? _wrongCredentials
+            : e.userMessage;
+      });
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _email.text.trim();
+    if (!email.contains('@')) {
+      showAppSnack(context, 'Isi email kamu dulu, lalu ketuk "Lupa password?".');
+      return;
+    }
+    try {
+      await ref
+          .read(apiClientProvider)
+          .post('/auth/password/forgot', auth: false, data: {'email': email});
+      if (mounted) showAppSnack(context, 'Jika email terdaftar, link reset dikirim ke email kamu.');
+    } on ApiException catch (e) {
+      if (mounted) showAppSnack(context, e.userMessage);
     }
   }
 
@@ -75,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
               if (_state == LoginState.error) ...[
                 StatusBanner(
                   type: BannerType.error,
-                  message: 'Email atau password salah.',
+                  message: _error,
                   actionLabel: 'Coba lagi',
                   onAction: () => setState(() {
                     _state = LoginState.idle;
@@ -104,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 alignment: Alignment.centerRight,
                 child: AppTextAction(
                   label: 'Lupa password?',
-                  onPressed: () => showAppSnack(context, 'Link reset dikirim ke email kamu.'),
+                  onPressed: loading ? null : _forgotPassword,
                 ),
               ),
             ],
