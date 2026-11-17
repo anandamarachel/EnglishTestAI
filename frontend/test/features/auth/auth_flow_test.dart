@@ -103,6 +103,27 @@ void main() {
     expect(backend.count('POST /auth/login'), 0);
   });
 
+  testWidgets('dashboard reloads whenever it is visible again', (tester) async {
+    var withResume = false;
+    backend.on('GET /users/me', (_) => Reply(200, userJson()));
+    backend.on('GET /dashboard', (_) => Reply(200, dashboardJson(withResume: withResume)));
+    await startApp(tester, MemoryTokenStorage(const AuthTokens(accessToken: 'a', refreshToken: 'r')));
+    expect(find.text('Lanjutkan latihan'), findsNothing);
+
+    withResume = true; // e.g. a practice was started on another screen
+    await tester.tap(find.text('RA')); // profile
+    await tester.pumpAndSettle();
+    // Replaced like "Buat cerita baru" does, so the page the dashboard opened never returns.
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator).first);
+    navigator.pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => const Scaffold()), (r) => r.isFirst);
+    await tester.pumpAndSettle();
+    navigator.pop();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Writing · Describe your dream destination'), findsOneWidget);
+  });
+
   testWidgets('session revoked on the server: only the sheet, no dashboard banner', (tester) async {
     backend.on('GET /users/me', (_) => Reply(200, userJson()));
     backend.on('GET /dashboard', (_) => Reply(401, errorJson('UNAUTHORIZED')));

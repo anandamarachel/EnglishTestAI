@@ -4,21 +4,29 @@ import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/answer_widgets.dart';
 import 'package:english_day/core/widgets/app_button.dart';
 import 'package:english_day/core/widgets/common.dart';
-import 'package:english_day/dev/dummy_data.dart';
 import 'package:english_day/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:english_day/features/reading/data/reading_models.dart';
 import 'package:english_day/features/reading/presentation/reading_settings_screen.dart';
 
 // ------------------------------------------------------------------ Result
 class ReadingResultScreen extends StatelessWidget {
-  const ReadingResultScreen({super.key, required this.answers});
-  final List<int> answers;
+  const ReadingResultScreen({
+    super.key,
+    required this.story,
+    required this.answers,
+    required this.summary,
+  });
+
+  final ReadingStory story;
+
+  /// Graded answers by question id.
+  final Map<String, ReadingAnswer> answers;
+  final ReadingSummary summary;
 
   @override
   Widget build(BuildContext context) {
-    const quiz = ReadingDummy.quiz;
-    final score = [for (var i = 0; i < quiz.length; i++) answers[i] == quiz[i].correctIndex]
-        .where((e) => e)
-        .length;
+    final score = summary.correct;
+    final total = summary.total;
     return AppScaffold(
       title: 'Hasil kuis',
       bottom: Column(
@@ -26,8 +34,10 @@ class ReadingResultScreen extends StatelessWidget {
         children: [
           AppButton(
             label: 'Buat cerita baru',
-            onPressed: () => Navigator.of(context).pushReplacement(
+            // Back from the new settings goes to the dashboard, not the old story.
+            onPressed: () => Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(builder: (_) => const ReadingSettingsScreen()),
+              (route) => route.isFirst,
             ),
           ),
           const SizedBox(height: 8),
@@ -43,12 +53,12 @@ class ReadingResultScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
-          const MetaLabel('${ReadingDummy.storyTitle} · Medium'),
+          MetaLabel('${story.title} · ${story.level.name}'),
           const SizedBox(height: 8),
-          Align(alignment: Alignment.centerLeft, child: ScoreBadge('$score/${quiz.length}')),
+          Align(alignment: Alignment.centerLeft, child: ScoreBadge('$score/$total')),
           const SizedBox(height: 12),
           Text(
-            score == quiz.length
+            score == total
                 ? 'Sempurna! Semua jawaban kamu benar.'
                 : score >= 3
                     ? 'Bagus! $score jawaban kamu benar.'
@@ -56,11 +66,8 @@ class ReadingResultScreen extends StatelessWidget {
             style: AppText.sans(size: 15, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 12),
-          for (var i = 0; i < quiz.length; i++)
-            _ResultItem(
-              question: quiz[i],
-              correct: answers[i] == quiz[i].correctIndex,
-            ),
+          for (final q in story.questions)
+            if (answers[q.id] case final answer?) _ResultItem(question: q, answer: answer),
         ],
       ),
     );
@@ -68,13 +75,15 @@ class ReadingResultScreen extends StatelessWidget {
 }
 
 class _ResultItem extends StatelessWidget {
-  const _ResultItem({required this.question, required this.correct});
-  final QuizQuestion question;
-  final bool correct;
+  const _ResultItem({required this.question, required this.answer});
+  final ReadingQuestion question;
+  final ReadingAnswer answer;
 
   @override
   Widget build(BuildContext context) {
+    final correct = answer.isCorrect;
     final color = correct ? AppColors.success : AppColors.error;
+    final correctText = question.option(answer.correctOptionId)?.text ?? '';
     return InkWell(
       onTap: () => showModalBottomSheet(
         context: context,
@@ -84,13 +93,10 @@ class _ResultItem extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(question.question, style: AppText.h3),
+              Text(question.text, style: AppText.h3),
               const SizedBox(height: 16),
-              AnswerOption(
-                label: question.options[question.correctIndex],
-                state: OptionState.correct,
-              ),
-              AnswerFeedback(correct: correct, message: question.explanation),
+              AnswerOption(label: correctText, state: OptionState.correct),
+              AnswerFeedback(correct: correct, message: answer.explanation),
               const SizedBox(height: 16),
               AppButton.secondary(label: 'Tutup', onPressed: () => Navigator.pop(ctx)),
             ],
@@ -119,10 +125,10 @@ class _ResultItem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(question.question,
+                  Text(question.text,
                       style: AppText.sans(size: 15, weight: FontWeight.w600, height: 1.4)),
                   const SizedBox(height: 4),
-                  Text('${correct ? 'Benar' : 'Belum tepat'} · ${question.reviewAnswer}',
+                  Text('${correct ? 'Benar' : 'Belum tepat'} · $correctText',
                       style: AppText.small),
                 ],
               ),

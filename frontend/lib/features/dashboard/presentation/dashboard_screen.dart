@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:english_day/core/navigation/route_observer.dart';
 import 'package:english_day/core/network/api_exception.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/app_button.dart';
@@ -10,6 +11,8 @@ import 'package:english_day/features/auth/presentation/login_screen.dart';
 import 'package:english_day/features/dashboard/data/dashboard.dart';
 import 'package:english_day/features/listening/presentation/listening_screen.dart';
 import 'package:english_day/features/profile/presentation/profile_screen.dart';
+import 'package:english_day/features/reading/application/reading_session.dart';
+import 'package:english_day/features/reading/data/reading_repository.dart';
 import 'package:english_day/features/reading/presentation/reading_settings_screen.dart';
 import 'package:english_day/features/reading/presentation/reading_story_screen.dart';
 import 'package:english_day/features/speaking/presentation/mic_permission_screen.dart';
@@ -26,7 +29,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAware {
   @override
   void initState() {
     super.initState();
@@ -35,19 +38,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
-  /// Opens a page and reloads the dashboard when the user comes back (progress changed).
-  Future<void> _push(Widget page) async {
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
-    if (mounted) ref.invalidate(dashboardProvider);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null) appRouteObserver.subscribe(this, route);
   }
 
-  /// Practice screens are not connected to the API yet: open the skill's screen.
-  // TODO(api): pass resume.attemptId once each practice module loads real attempts.
+  @override
+  void dispose() {
+    appRouteObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  /// Visible again after practice screens closed: progress may have changed.
+  @override
+  void didPopNext() => ref.invalidate(dashboardProvider);
+
+  void _push(Widget page) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+
+  /// Reopens the saved attempt in its skill's screen.
+  // TODO(api): Listening and Speaking still open their dummy screens.
   Widget _resumePage(AttemptSummary resume) => switch (resume.skill) {
         'writing' => WritingInputScreen(resumeAttemptId: resume.attemptId),
+        'reading' => ReadingStoryScreen(
+            practice: ReadingSession(ref.read(readingRepositoryProvider),
+                resumeAttemptId: resume.attemptId)),
         'listening' => const ListeningScreen(),
-        'speaking' => const MicPermissionScreen(),
-        _ => const ReadingStoryScreen(),
+        _ => const MicPermissionScreen(),
       };
 
   @override

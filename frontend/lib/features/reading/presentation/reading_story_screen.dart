@@ -2,10 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:english_day/core/network/api_exception.dart';
+import 'package:english_day/core/network/jobs.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/app_button.dart';
 import 'package:english_day/core/widgets/common.dart';
-import 'package:english_day/dev/dummy_data.dart';
+import 'package:english_day/features/reading/application/reading_session.dart';
+import 'package:english_day/features/reading/data/reading_models.dart';
 import 'package:english_day/features/reading/presentation/reading_quiz_screen.dart';
 
 // ------------------------------------------------------------------- Story
@@ -14,19 +17,20 @@ enum StoryState { loading, slow, error, story }
 class ReadingStoryScreen extends StatefulWidget {
   const ReadingStoryScreen({
     super.key,
-    this.level = 'Medium',
-    this.topic = 'Budaya',
-    this.initialState = StoryState.story,
+    required this.practice,
+    this.initialState,
     this.autoLoad = true,
     this.openVocab,
     this.scrollToEnd = false,
   });
 
-  final String level;
-  final String topic;
-  final StoryState initialState;
+  final ReadingPractice practice;
 
-  /// Jika true, state loading otomatis berlanjut ke cerita.
+  /// Default: the story if it is already loaded, otherwise loading.
+  /// The design gallery sets loading/slow/error directly.
+  final StoryState? initialState;
+
+  /// Start generating the story when the screen opens in the loading state.
   final bool autoLoad;
   final String? openVocab;
   final bool scrollToEnd;
@@ -36,19 +40,29 @@ class ReadingStoryScreen extends StatefulWidget {
 }
 
 class _ReadingStoryScreenState extends State<ReadingStoryScreen> {
-  late StoryState _state = widget.initialState;
+  static const _slowAfter = Duration(seconds: 10);
+
+  late StoryState _state = widget.initialState ??
+      (widget.practice.story != null ? StoryState.story : StoryState.loading);
   final _scroll = ScrollController();
   Timer? _slowTimer;
-  Timer? _doneTimer;
+  int _run = 0;
 
-  String get _meta => '${widget.level} · ${widget.topic}';
+  ReadingStory? get _story => widget.practice.story;
 
   @override
   void initState() {
     super.initState();
-    if (_state == StoryState.loading && widget.autoLoad) _generate();
+    if (_state == StoryState.loading && widget.autoLoad) _load();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.openVocab != null) _showVocab(widget.openVocab!);
+      final word = widget.openVocab;
+      if (word != null) {
+        for (final p in _story?.paragraphs ?? const <ReadingParagraph>[]) {
+          for (final h in p.highlights) {
+            if (h.vocab.word == word) return _showVocab(h.vocab);
+          }
+        }
+      }
       if (widget.scrollToEnd && _scroll.hasClients) {
         _scroll.jumpTo(_scroll.position.maxScrollExtent);
       }
@@ -58,31 +72,42 @@ class _ReadingStoryScreenState extends State<ReadingStoryScreen> {
   @override
   void dispose() {
     _slowTimer?.cancel();
-    _doneTimer?.cancel();
     _scroll.dispose();
     super.dispose();
   }
 
-  void _generate() {
+  Future<void> _load() async {
+    final run = ++_run;
     setState(() => _state = StoryState.loading);
-    _slowTimer = Timer(const Duration(seconds: 10), () {
-      if (mounted) setState(() => _state = StoryState.slow);
+    _slowTimer?.cancel();
+    _slowTimer = Timer(_slowAfter, () {
+      if (mounted && _state == StoryState.loading) setState(() => _state = StoryState.slow);
     });
-    _doneTimer = Timer(const Duration(milliseconds: 2200), () {
+    try {
+      await widget.practice.load();
+      if (!mounted || run != _run) return;
       _slowTimer?.cancel();
-      if (mounted) setState(() => _state = StoryState.story);
-    });
+      setState(() => _state = StoryState.story);
+    } on OperationCancelledException {
+      return;
+    } catch (e) {
+      if (!mounted || run != _run) return;
+      _slowTimer?.cancel();
+      setState(() => _state = StoryState.error);
+      if (e is ApiException && !e.retryable && !e.isSessionEnded) {
+        showAppSnack(context, e.userMessage);
+      }
+    }
   }
 
   void _cancel() {
+    _run++;
     _slowTimer?.cancel();
-    _doneTimer?.cancel();
+    widget.practice.cancel();
     Navigator.maybePop(context);
   }
 
-  void _showVocab(String word) {
-    final item = ReadingDummy.vocabulary[word];
-    if (item == null) return;
+  void _showVocab(VocabEntry item) {
     showModalBottomSheet(
       context: context,
       builder: (ctx) => Padding(
@@ -93,7 +118,7 @@ class _ReadingStoryScreenState extends State<ReadingStoryScreen> {
           children: [
             Row(
               children: [
-                Expanded(child: Text(word, style: AppText.h2)),
+                Expanded(child: Text(item.word, style: AppText.h2)),
                 IconButton(
                   onPressed: () => Navigator.pop(ctx),
                   icon: const Icon(Icons.close, color: AppColors.primary),
@@ -134,42 +159,45 @@ class _ReadingStoryScreenState extends State<ReadingStoryScreen> {
   @override
   Widget build(BuildContext context) {
     final busy = _state == StoryState.loading || _state == StoryState.slow;
+    final story = _story;
+    final ready = _state == StoryState.story && story != null;
     return AppScaffold(
-      title: ReadingDummy.storyTitle,
-      bottom: _state == StoryState.story
+      title: story?.title ?? 'Reading',
+      bottom: ready
           ? AppButton(
               label: 'Mulai kuis',
-              onPressed: () => Navigator.of(context)
-                  .push(MaterialPageRoute(builder: (_) => const ReadingQuizScreen())),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => ReadingQuizScreen(practice: widget.practice))),
             )
           : AppButton(
               label: 'Buat cerita',
               loading: busy,
               loadingLabel: 'Membuat cerita…',
-              onPressed: _generate,
+              onPressed: _load,
             ),
-      body: _state == StoryState.story ? _buildStory() : _buildPending(),
+      body: ready ? _buildStory(story) : _buildPending(),
     );
   }
 
   Widget _buildPending() {
+    final meta = widget.practice.meta;
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
-        MetaLabel(_meta),
+        MetaLabel(meta),
         const SizedBox(height: 24),
         if (_state == StoryState.slow) ...[
           StatusBanner.slow(onAction: _cancel),
           const SizedBox(height: 28),
         ],
         if (_state == StoryState.error) ...[
-          StatusBanner.timeout(onAction: _generate),
+          StatusBanner.timeout(onAction: _load),
           const SizedBox(height: 28),
         ],
         Text(_state == StoryState.error ? 'Cerita belum tersedia' : 'Membuat cerita…',
             style: AppText.h3),
         const SizedBox(height: 20),
-        Text('Pilihan kamu tersimpan: $_meta', style: AppText.small),
+        Text('Pilihan kamu tersimpan: $meta', style: AppText.small),
         const SizedBox(height: 20),
         const SkeletonParagraph(groups: 2),
         const SkeletonBlock(),
@@ -179,15 +207,15 @@ class _ReadingStoryScreenState extends State<ReadingStoryScreen> {
     );
   }
 
-  Widget _buildStory() {
+  Widget _buildStory(ReadingStory story) {
     final base = AppText.serif(size: 18, height: 1.6);
     return ListView(
       controller: _scroll,
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
-        MetaLabel(_meta),
+        MetaLabel(story.meta),
         const SizedBox(height: 20),
-        for (final p in ReadingDummy.paragraphs) ...[
+        for (final p in story.paragraphs) ...[
           Text.rich(TextSpan(style: base, children: _spans(p, base))),
           const SizedBox(height: 22),
         ],
@@ -196,28 +224,27 @@ class _ReadingStoryScreenState extends State<ReadingStoryScreen> {
     );
   }
 
-  List<InlineSpan> _spans(String paragraph, TextStyle base) {
+  List<InlineSpan> _spans(ReadingParagraph paragraph, TextStyle base) {
+    final text = paragraph.text;
     final spans = <InlineSpan>[];
-    final regex = RegExp(r'\[(.+?)\]');
     var last = 0;
-    for (final m in regex.allMatches(paragraph)) {
-      spans.add(TextSpan(text: paragraph.substring(last, m.start)));
-      final word = m.group(1)!;
+    for (final h in paragraph.highlights) {
+      spans.add(TextSpan(text: text.substring(last, h.start)));
       spans.add(WidgetSpan(
         alignment: PlaceholderAlignment.baseline,
         baseline: TextBaseline.alphabetic,
         child: GestureDetector(
-          onTap: () => _showVocab(word),
+          onTap: () => _showVocab(h.vocab),
           child: Container(
             color: AppColors.highlight,
             padding: const EdgeInsets.symmetric(horizontal: 1),
-            child: Text(word, style: base),
+            child: Text(text.substring(h.start, h.end), style: base),
           ),
         ),
       ));
-      last = m.end;
+      last = h.end;
     }
-    spans.add(TextSpan(text: paragraph.substring(last)));
+    spans.add(TextSpan(text: text.substring(last)));
     return spans;
   }
 }

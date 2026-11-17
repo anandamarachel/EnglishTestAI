@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:english_day/core/config/app_info.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/common.dart';
+import 'package:english_day/dev/demo_reading.dart';
 import 'package:english_day/dev/demo_scope.dart';
 import 'package:english_day/dev/dummy_data.dart';
 import 'package:english_day/dev/showcase/ai_status_showcase_screen.dart';
@@ -108,26 +109,60 @@ class GalleryScreen extends StatelessWidget {
       ('pengaturan', (_) => const ReadingSettingsScreen()),
       (
         'cerita loading',
-        (_) => const ReadingStoryScreen(initialState: StoryState.loading, autoLoad: false)
+        (_) => ReadingStoryScreen(
+            practice: DemoReadingPractice(loaded: false),
+            initialState: StoryState.loading,
+            autoLoad: false)
       ),
-      ('cerita slow', (_) => const ReadingStoryScreen(initialState: StoryState.slow)),
-      ('cerita error', (_) => const ReadingStoryScreen(initialState: StoryState.error)),
-      ('cerita story', (_) => const ReadingStoryScreen()),
-      ('cerita continuation', (_) => const ReadingStoryScreen(scrollToEnd: true)),
-      ('cerita sheet', (_) => const ReadingStoryScreen(openVocab: 'drifted')),
-      ('kuis empty', (_) => const ReadingQuizScreen(initialIndex: 1)),
-      ('kuis selected', (_) => const ReadingQuizScreen(initialIndex: 1, initialSelected: 1)),
+      (
+        'cerita slow',
+        (_) => ReadingStoryScreen(
+            practice: DemoReadingPractice(loaded: false), initialState: StoryState.slow)
+      ),
+      (
+        'cerita error',
+        (_) => ReadingStoryScreen(
+            practice: DemoReadingPractice(loaded: false), initialState: StoryState.error)
+      ),
+      ('cerita story', (_) => ReadingStoryScreen(practice: DemoReadingPractice())),
+      (
+        'cerita continuation',
+        (_) => ReadingStoryScreen(practice: DemoReadingPractice(), scrollToEnd: true)
+      ),
+      (
+        'cerita sheet',
+        (_) => ReadingStoryScreen(practice: DemoReadingPractice(), openVocab: 'drifted')
+      ),
+      ('kuis empty', (_) => ReadingQuizScreen(practice: DemoReadingPractice(), initialIndex: 1)),
+      (
+        'kuis selected',
+        (_) => ReadingQuizScreen(
+            practice: DemoReadingPractice(), initialIndex: 1, initialSelected: 1)
+      ),
       (
         'kuis correct',
-        (_) => const ReadingQuizScreen(
-            initialIndex: 1, initialSelected: 1, initialSubmitted: true)
+        (_) => ReadingQuizScreen(
+            practice: DemoReadingPractice(),
+            initialIndex: 1,
+            initialSelected: 1,
+            initialSubmitted: true)
       ),
       (
         'kuis wrong',
-        (_) => const ReadingQuizScreen(
-            initialIndex: 1, initialSelected: 2, initialSubmitted: true)
+        (_) => ReadingQuizScreen(
+            practice: DemoReadingPractice(),
+            initialIndex: 1,
+            initialSelected: 2,
+            initialSubmitted: true)
       ),
-      ('kuis result', (_) => const ReadingResultScreen(answers: [1, 1, 2, 0, 1])),
+      (
+        'kuis result',
+        (_) {
+          final demo = DemoReadingPractice(answered: [1, 1, 2, 0, 1]);
+          return ReadingResultScreen(
+              story: DemoReadingPractice.demoStory, answers: demo.answers, summary: demo.summary);
+        }
+      ),
     ],
     'Speaking': [
       ('empty', (_) => const SpeakingScreen()),
