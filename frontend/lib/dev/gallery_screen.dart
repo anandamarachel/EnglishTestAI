@@ -6,6 +6,7 @@ import 'package:english_day/core/widgets/common.dart';
 import 'package:english_day/dev/demo_listening.dart';
 import 'package:english_day/dev/demo_reading.dart';
 import 'package:english_day/dev/demo_scope.dart';
+import 'package:english_day/dev/demo_speaking.dart';
 import 'package:english_day/dev/dummy_data.dart';
 import 'package:english_day/dev/showcase/ai_status_showcase_screen.dart';
 import 'package:english_day/dev/showcase/answers_showcase_screen.dart';
@@ -166,27 +167,35 @@ class GalleryScreen extends StatelessWidget {
       ),
     ],
     'Speaking': [
-      ('empty', (_) => const SpeakingScreen()),
-      ('idle', (_) => const SpeakingScreen(withHistory: true)),
+      ('empty', (_) => SpeakingScreen(practice: DemoSpeakingPractice())),
+      ('idle', (_) => SpeakingScreen(practice: DemoSpeakingPractice(withHistory: true))),
       (
         'recording',
-        (_) => const SpeakingScreen(withHistory: true, initialState: SpeakingState.recording)
+        (_) => SpeakingScreen(
+            practice: DemoSpeakingPractice(withHistory: true)..showLiveTranscript(),
+            initialState: SpeakingState.recording)
       ),
       (
         'processing',
-        (_) => const SpeakingScreen(withHistory: true, initialState: SpeakingState.processing)
+        (_) => SpeakingScreen(
+            practice: DemoSpeakingPractice(withHistory: true),
+            initialState: SpeakingState.processing)
       ),
       (
         'speaking',
-        (_) => const SpeakingScreen(withHistory: true, initialState: SpeakingState.aiSpeaking)
+        (_) => SpeakingScreen(
+            practice: DemoSpeakingPractice(withHistory: true),
+            initialState: SpeakingState.aiSpeaking)
       ),
       (
         'slow',
-        (_) => const SpeakingScreen(withHistory: true, initialState: SpeakingState.slow)
+        (_) => SpeakingScreen(
+            practice: DemoSpeakingPractice(withHistory: true), initialState: SpeakingState.slow)
       ),
       (
         'error',
-        (_) => const SpeakingScreen(withHistory: true, initialState: SpeakingState.error)
+        (_) => SpeakingScreen(
+            practice: DemoSpeakingPractice(withHistory: true), initialState: SpeakingState.error)
       ),
     ],
     'Listening': [

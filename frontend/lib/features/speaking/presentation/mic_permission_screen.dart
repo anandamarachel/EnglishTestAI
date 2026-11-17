@@ -1,33 +1,64 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:english_day/core/widgets/app_button.dart';
 import 'package:english_day/core/widgets/common.dart';
+import 'package:english_day/features/speaking/application/voice_io.dart';
 import 'package:english_day/features/speaking/presentation/speaking_screen.dart';
 
 // ------------------------------------------------------- Izin mikrofon
-class MicPermissionScreen extends StatelessWidget {
+/// Asks for microphone access before Speaking (the system dialog appears on tap).
+class MicPermissionScreen extends ConsumerStatefulWidget {
   const MicPermissionScreen({super.key, this.permanentlyDenied = false});
+
+  /// Start in the "access turned off" state (after a refusal, or in the gallery).
   final bool permanentlyDenied;
 
-  void _goSpeaking(BuildContext context) => Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const SpeakingScreen()),
-      );
+  @override
+  ConsumerState<MicPermissionScreen> createState() => _MicPermissionScreenState();
+}
+
+class _MicPermissionScreenState extends ConsumerState<MicPermissionScreen> {
+  late bool _denied = widget.permanentlyDenied;
+  bool _asking = false;
+
+  Future<bool> _askPermission() async {
+    final recorder = ref.read(voiceRecorderFactoryProvider)();
+    try {
+      return await recorder.hasPermission();
+    } catch (_) {
+      return false;
+    } finally {
+      recorder.dispose();
+    }
+  }
+
+  Future<void> _allow() async {
+    setState(() => _asking = true);
+    final granted = await _askPermission();
+    if (!mounted) return;
+    setState(() => _asking = false);
+    if (granted) {
+      Navigator.of(context)
+          .pushReplacement(MaterialPageRoute(builder: (_) => const SpeakingScreen()));
+    } else if (_denied) {
+      // Android/iOS no longer show the dialog after a refusal: only Settings can allow it.
+      showAppSnack(context,
+          'Izinkan mikrofon untuk English Day di Pengaturan HP (Aplikasi → Izin), lalu coba lagi.');
+    } else {
+      setState(() => _denied = true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (permanentlyDenied) {
+    if (_denied) {
       return AppScaffold(
         title: 'Speaking',
         bottom: AppButton(
           label: 'Buka pengaturan',
-          onPressed: () {
-            showAppSnack(context, 'Membuka pengaturan (dummy)…');
-            Future.delayed(const Duration(milliseconds: 900), () {
-              if (context.mounted) _goSpeaking(context);
-            });
-          },
+          loading: _asking,
+          onPressed: _allow,
         ),
         body: const InfoStateView(
           icon: Icons.mic_off_outlined,
@@ -41,7 +72,7 @@ class MicPermissionScreen extends StatelessWidget {
       bottom: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AppButton(label: 'Izinkan mikrofon', onPressed: () => _goSpeaking(context)),
+          AppButton(label: 'Izinkan mikrofon', loading: _asking, onPressed: _allow),
           const SizedBox(height: 8),
           AppTextAction(label: 'Nanti saja', onPressed: () => Navigator.maybePop(context)),
         ],

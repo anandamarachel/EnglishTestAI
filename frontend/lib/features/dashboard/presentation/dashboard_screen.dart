@@ -16,6 +16,7 @@ import 'package:english_day/features/reading/data/reading_repository.dart';
 import 'package:english_day/features/reading/presentation/reading_settings_screen.dart';
 import 'package:english_day/features/reading/presentation/reading_story_screen.dart';
 import 'package:english_day/features/speaking/presentation/mic_permission_screen.dart';
+import 'package:english_day/features/speaking/presentation/speaking_screen.dart';
 import 'package:english_day/features/writing/presentation/writing_input_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -58,14 +59,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
   void _push(Widget page) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
 
   /// Reopens the saved attempt in its skill's screen.
-  // TODO(api): Speaking still opens its dummy screen.
   Widget _resumePage(AttemptSummary resume) => switch (resume.skill) {
         'writing' => WritingInputScreen(resumeAttemptId: resume.attemptId),
         'reading' => ReadingStoryScreen(
             practice: ReadingSession(ref.read(readingRepositoryProvider),
                 resumeAttemptId: resume.attemptId)),
         'listening' => ListeningScreen(resumeAttemptId: resume.attemptId),
-        _ => const MicPermissionScreen(),
+        _ => SpeakingScreen(resumeAttemptId: resume.attemptId),
       };
 
   @override
