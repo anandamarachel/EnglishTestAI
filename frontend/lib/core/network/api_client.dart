@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:uuid/uuid.dart';
@@ -80,6 +81,13 @@ class ApiClient {
 
   Future<dynamic> get(String path, {Map<String, dynamic>? query, bool auth = true}) =>
       _send(() => _dio.get(path, queryParameters: query, options: _opts(auth)));
+
+  /// A binary download (e.g. private audio), with the same auth and refresh as [get].
+  Future<Uint8List> getBytes(String path) async {
+    final data = await _send(() => _dio.get<List<int>>(path,
+        options: _opts(true).copyWith(responseType: ResponseType.bytes)));
+    return data is Uint8List ? data : Uint8List.fromList(data as List<int>);
+  }
 
   /// [idempotencyKey] is required by the backend on protected creation/submission POSTs.
   Future<dynamic> post(

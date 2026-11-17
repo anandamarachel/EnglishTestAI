@@ -1,3 +1,4 @@
+import 'package:english_day/core/models/choice_question.dart';
 import 'package:english_day/dev/dummy_data.dart';
 import 'package:english_day/features/reading/application/reading_session.dart';
 import 'package:english_day/features/reading/data/reading_models.dart';
@@ -13,7 +14,7 @@ class DemoReadingPractice implements ReadingPractice {
 
   /// False keeps the story "being generated" (loading/slow/error states).
   final bool loaded;
-  final _answers = <String, ReadingAnswer>{};
+  final _answers = <String, GradedAnswer>{};
 
   static final demoStory = ReadingStory(
     exerciseId: 'demo',
@@ -23,13 +24,13 @@ class DemoReadingPractice implements ReadingPractice {
     paragraphs: [for (final p in ReadingDummy.paragraphs) _paragraph(p)],
     questions: [
       for (var i = 0; i < ReadingDummy.quiz.length; i++)
-        ReadingQuestion(
+        ChoiceQuestion(
           id: 'q$i',
           text: ReadingDummy.quiz[i].question,
           options: [
             for (var j = 0; j < ReadingDummy.quiz[i].options.length; j++)
               // The dummy options carry their own "A. " prefix; the API's do not.
-              ReadingOption('q$i-o$j', ReadingDummy.quiz[i].options[j].substring(3)),
+              ChoiceOption('q$i-o$j', ReadingDummy.quiz[i].options[j].substring(3)),
           ],
         ),
     ],
@@ -53,11 +54,11 @@ class DemoReadingPractice implements ReadingPractice {
     return ReadingParagraph(text.toString(), highlights);
   }
 
-  ReadingAnswer _grade(int index, String optionId) {
+  GradedAnswer _grade(int index, String optionId) {
     final q = ReadingDummy.quiz[index];
     final correctId = 'q$index-o${q.correctIndex}';
     final correct = optionId == correctId;
-    return ReadingAnswer(
+    return GradedAnswer(
       questionId: 'q$index',
       selectedOptionId: optionId,
       isCorrect: correct,
@@ -76,13 +77,13 @@ class DemoReadingPractice implements ReadingPractice {
   Future<ReadingStory> load() async => demoStory;
 
   @override
-  Map<String, ReadingAnswer> get answers => _answers;
+  Map<String, GradedAnswer> get answers => _answers;
 
   @override
   int get nextQuestionIndex => _answers.length.clamp(0, demoStory.questions.length - 1);
 
   @override
-  Future<ReadingAnswer> answer(ReadingQuestion question, String optionId) async =>
+  Future<GradedAnswer> answer(ChoiceQuestion question, String optionId) async =>
       _answers[question.id] = _grade(demoStory.questions.indexOf(question), optionId);
 
   ReadingSummary get summary => ReadingSummary(

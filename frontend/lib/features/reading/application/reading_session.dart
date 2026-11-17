@@ -1,3 +1,4 @@
+import 'package:english_day/core/models/choice_question.dart';
 import 'package:english_day/core/network/api_client.dart';
 import 'package:english_day/core/network/api_exception.dart';
 import 'package:english_day/core/network/jobs.dart';
@@ -19,12 +20,12 @@ abstract interface class ReadingPractice {
   Future<ReadingStory> load();
 
   /// Graded answers by question id.
-  Map<String, ReadingAnswer> get answers;
+  Map<String, GradedAnswer> get answers;
 
   /// Where the quiz starts: the first question without an answer.
   int get nextQuestionIndex;
 
-  Future<ReadingAnswer> answer(ReadingQuestion question, String optionId);
+  Future<GradedAnswer> answer(ChoiceQuestion question, String optionId);
 
   /// Submits the attempt once every question is answered.
   Future<ReadingSummary> finish();
@@ -55,7 +56,7 @@ class ReadingSession implements ReadingPractice {
   String? _attemptId;
   int _revision = 0;
   ReadingStory? _story;
-  final _answers = <String, ReadingAnswer>{};
+  final _answers = <String, GradedAnswer>{};
   final _answerKeys = <String, (String optionId, int revision, String key)>{};
   String? _finishKey;
   int _run = 0;
@@ -69,11 +70,11 @@ class ReadingSession implements ReadingPractice {
   ReadingStory? get story => _story;
 
   @override
-  Map<String, ReadingAnswer> get answers => Map.unmodifiable(_answers);
+  Map<String, GradedAnswer> get answers => Map.unmodifiable(_answers);
 
   @override
   int get nextQuestionIndex {
-    final questions = _story?.questions ?? const <ReadingQuestion>[];
+    final questions = _story?.questions ?? const <ChoiceQuestion>[];
     final i = questions.indexWhere((q) => !_answers.containsKey(q.id));
     return i < 0 ? (questions.isEmpty ? 0 : questions.length - 1) : i;
   }
@@ -131,13 +132,13 @@ class ReadingSession implements ReadingPractice {
     for (final a in attempt.answers) {
       if (!a.graded) continue;
       final feedback = await _repo.feedback(attemptId, a.questionId);
-      _answers[a.questionId] = ReadingAnswer.fromFeedback(feedback, a.selectedOptionId);
+      _answers[a.questionId] = GradedAnswer.fromFeedback(feedback, a.selectedOptionId);
     }
     return _story = story;
   }
 
   @override
-  Future<ReadingAnswer> answer(ReadingQuestion question, String optionId) async {
+  Future<GradedAnswer> answer(ChoiceQuestion question, String optionId) async {
     final attemptId = _attemptId!;
     var pending = _answerKeys[question.id];
     if (pending == null || pending.$1 != optionId) {
@@ -175,7 +176,7 @@ class ReadingSession implements ReadingPractice {
       if (jobId != null) await _repo.waitJob(jobId);
       feedback = await _repo.feedback(attemptId, question.id);
     }
-    return _answers[question.id] = ReadingAnswer.fromFeedback(feedback, optionId);
+    return _answers[question.id] = GradedAnswer.fromFeedback(feedback, optionId);
   }
 
   @override

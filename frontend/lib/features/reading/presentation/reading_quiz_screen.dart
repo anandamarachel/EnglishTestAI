@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:english_day/core/models/choice_question.dart';
 import 'package:english_day/core/network/api_exception.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/answer_widgets.dart';
@@ -36,10 +37,10 @@ class _ReadingQuizScreenState extends State<ReadingQuizScreen> {
   late final ReadingStory _story = widget.practice.story!;
   late int _index = widget.initialIndex ?? widget.practice.nextQuestionIndex;
   String? _selected;
-  ReadingAnswer? _answer;
+  GradedAnswer? _answer;
   bool _sending = false;
 
-  ReadingQuestion get _q => _story.questions[_index];
+  ChoiceQuestion get _q => _story.questions[_index];
   int get _total => _story.questions.length;
 
   @override
@@ -104,7 +105,7 @@ class _ReadingQuizScreenState extends State<ReadingQuizScreen> {
         error is ApiException && error.code == ApiException.network ? error.userMessage : fallback);
   }
 
-  OptionState _optionState(ReadingOption option) {
+  OptionState _optionState(ChoiceOption option) {
     final answer = _answer;
     if (answer == null) {
       return _selected == option.id ? OptionState.selected : OptionState.normal;
@@ -179,6 +180,3 @@ class _ReadingQuizScreenState extends State<ReadingQuizScreen> {
     );
   }
 }
-
-/// A, B, C, ... for option labels as in the design.
-String optionLetter(int index) => String.fromCharCode(65 + index);

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:english_day/core/config/app_info.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/common.dart';
+import 'package:english_day/dev/demo_listening.dart';
 import 'package:english_day/dev/demo_reading.dart';
 import 'package:english_day/dev/demo_scope.dart';
 import 'package:english_day/dev/dummy_data.dart';
@@ -189,56 +190,65 @@ class GalleryScreen extends StatelessWidget {
       ),
     ],
     'Listening': [
-      ('empty', (_) => const ListeningScreen()),
+      ('empty', (_) => ListeningScreen(practice: DemoListeningPractice(loaded: false))),
       (
         'loading',
-        (_) => const ListeningScreen(initialPhase: ListeningPhase.loading, freeze: true)
+        (_) => ListeningScreen(
+            practice: DemoListeningPractice(loaded: false),
+            initialPhase: ListeningPhase.loading,
+            freeze: true)
       ),
       (
         'slow',
-        (_) => const ListeningScreen(initialPhase: ListeningPhase.slow, freeze: true)
+        (_) => ListeningScreen(
+            practice: DemoListeningPractice(loaded: false),
+            initialPhase: ListeningPhase.slow,
+            freeze: true)
       ),
       (
         'playing',
-        (_) => const ListeningScreen(
+        (_) => ListeningScreen(
+            practice: DemoListeningPractice(answers: [0, null, null]),
             initialPhase: ListeningPhase.practice,
-            initialAnswers: [0, null, null],
             autoPlay: true)
       ),
       (
         'questions',
-        (_) => const ListeningScreen(
-            initialPhase: ListeningPhase.practice, initialAnswers: [0, 1, 2])
+        (_) => ListeningScreen(
+            practice: DemoListeningPractice(answers: [0, 1, 2]),
+            initialPhase: ListeningPhase.practice)
       ),
       (
         'locked',
-        (_) => const ListeningScreen(
+        (_) => ListeningScreen(
+            practice: DemoListeningPractice(answers: [0, 1, 2]),
             initialPhase: ListeningPhase.practice,
-            initialAnswers: [0, 1, 2],
             scrollToLast: true)
       ),
       (
         'error',
-        (_) => const ListeningScreen(
-            initialPhase: ListeningPhase.audioError, initialAnswers: [0, null, null])
+        (_) => ListeningScreen(
+            practice: DemoListeningPractice(answers: [0, null, null]),
+            initialPhase: ListeningPhase.audioError)
       ),
       (
         'result',
-        (_) => const ListeningScreen(
-            initialPhase: ListeningPhase.result, initialAnswers: [0, 1, 2])
+        (_) => ListeningScreen(
+            practice: DemoListeningPractice(answers: [0, 1, 2], submitted: true),
+            initialPhase: ListeningPhase.result)
       ),
       (
         'review',
-        (_) => const ListeningScreen(
+        (_) => ListeningScreen(
+            practice: DemoListeningPractice(answers: [0, 1, 2], submitted: true),
             initialPhase: ListeningPhase.result,
-            initialAnswers: [0, 1, 2],
             focus: ResultFocus.review)
       ),
       (
         'transcript',
-        (_) => const ListeningScreen(
+        (_) => ListeningScreen(
+            practice: DemoListeningPractice(answers: [0, 1, 2], submitted: true),
             initialPhase: ListeningPhase.result,
-            initialAnswers: [0, 1, 2],
             focus: ResultFocus.transcript)
       ),
     ],
