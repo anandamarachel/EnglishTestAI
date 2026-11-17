@@ -52,8 +52,15 @@ class FakeBackend implements HttpClientAdapter {
     final reply = handler == null
         ? const Reply(404, {'code': 'NOT_FOUND', 'message': 'no fake route', 'retryable': false, 'details': []})
         : await handler(request);
+    final body = reply.body;
+    if (body is Uint8List) {
+      return ResponseBody.fromBytes(body, reply.status, headers: {
+        Headers.contentTypeHeader: ['audio/wav'],
+        ...reply.headers,
+      });
+    }
     return ResponseBody.fromString(
-      reply.body == null ? '' : jsonEncode(reply.body),
+      body == null ? '' : jsonEncode(body),
       reply.status,
       headers: {
         Headers.contentTypeHeader: [Headers.jsonContentType],

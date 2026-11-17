@@ -2,7 +2,9 @@
 
 Implementasi Frontend Flutter lengkap untuk aplikasi pembelajaran bahasa Inggris **English Day** SMAN 10 Gowa, dislicing secara presisi 1:1 dari 58 desain visual pada folder [`docs/design/`](../docs/design/) di root repo.
 
-Seluruh fungsionalitas menggunakan data dummy interaktif tanpa backend.
+Login, dashboard, profil, Writing, Reading, dan Listening sudah tersambung ke backend
+(`/api/v1`, lihat [Menghubungkan ke backend](#menghubungkan-ke-backend)). Speaking masih
+memakai data dummy. Galeri desain (debug) selalu memakai data demo tanpa server.
 
 ---
 
@@ -102,8 +104,8 @@ flutter run -d chrome --web-port 5000
 
 ### Menghubungkan ke backend
 
-Login, register, dashboard dan profil memakai API backend (`/api/v1`). Jalankan backend
-dulu (butuh **Docker Desktop**), lihat [README root](../README.md):
+Login, register, dashboard, profil, Writing, Reading dan Listening memakai API backend
+(`/api/v1`). Jalankan backend dulu (butuh **Docker Desktop**), lihat [README root](../README.md):
 
 ```bash
 cd backend
@@ -131,6 +133,15 @@ dan selalu jalankan Chrome dengan port yang sama: `flutter run -d chrome --web-p
 **HP sungguhan:** di `backend/.env` set `API_BIND=0.0.0.0` dan tambahkan IP laptop ke
 `ALLOWED_HOSTS` (lihat README root), lalu pakai `--dart-define` seperti tabel di atas.
 
+**AI sungguhan vs AI palsu:** secara default backend development memakai AI palsu (`fake`):
+soal, koreksi dan audio hanya contoh (koreksi Writing cuma mengenali beberapa pola, audio
+berupa bunyi "beep"). Untuk AI sungguhan isi `AI_PROVIDER=router` dan `ROUTER_API_KEY=...`
+di `backend/.env` (minta key ke tim backend), lalu `make restart`. Aplikasi tidak perlu diubah.
+
+**Setelah menarik perubahan yang menambah package** (mis. `audioplayers` untuk Listening):
+hentikan `flutter run` (`q`) lalu jalankan lagi; hot restart (`R`) tidak cukup untuk
+plugin baru.
+
 Tanpa backend, aplikasi menampilkan layar **"Tidak ada koneksi internet"** saat ada sesi
 tersimpan, atau pesan error di layar login. Galeri desain (Profil → Tentang aplikasi)
 tetap bisa dibuka karena memakai data demo.
@@ -150,11 +161,15 @@ lib/
 │   ├── config/
 │   │   ├── api_config.dart            # Alamat API (otomatis per platform / --dart-define)
 │   │   └── app_info.dart              # Nama aplikasi, sekolah, versi
+│   ├── models/choice_question.dart    # Soal pilihan ganda + jawaban yang dinilai server
+│   ├── navigation/route_observer.dart # Layar tahu saat tampil lagi (dashboard refresh)
 │   ├── network/
 │   │   ├── api_client.dart            # dio: token, refresh antre (single-flight), Idempotency-Key
 │   │   ├── api_exception.dart         # Error backend {code, message, ...} + pesan Indonesia
+│   │   ├── jobs.dart                  # Job AI + polling GET /jobs/{id}
 │   │   └── providers.dart             # apiClientProvider, tokenStorageProvider
 │   ├── storage/token_storage.dart     # Simpan token (flutter_secure_storage)
+│   ├── text/text_span_offsets.dart    # Offset code point (backend) → UTF-16 (Dart)
 │   ├── theme/app_theme.dart           # Design tokens (AppColors, AppText/GoogleFonts, AppTheme)
 │   └── widgets/
 │       ├── answer_widgets.dart        # AnswerOption, AnswerFeedback, ChatBubble, SoundWave
@@ -170,14 +185,25 @@ lib/
 │   ├── dashboard/                     # ✅ tersambung API
 │   │   ├── data/dashboard.dart        # DashboardData, dashboardProvider (GET /dashboard)
 │   │   └── presentation/              # dashboard (+ sheet sesi habis)
-│   ├── writing/presentation/          # input, hasil koreksi
-│   ├── reading/presentation/          # pengaturan, cerita, kuis, hasil
-│   ├── listening/presentation/        # listening (intro → audio → soal → hasil)
-│   ├── speaking/presentation/         # izin mikrofon, percakapan
+│   ├── writing/                       # ✅ tersambung API (koreksi oleh AI)
+│   │   ├── data/                      # WritingResult (koreksi), WritingRepository
+│   │   ├── application/               # WritingSession (soal → draft → submit → evaluasi)
+│   │   └── presentation/              # input, hasil koreksi
+│   ├── reading/                       # ✅ tersambung API (cerita & kuis dari AI)
+│   │   ├── data/                      # ReadingStory (+kosakata), ReadingRepository
+│   │   ├── application/               # ReadingSession (cerita → jawab per soal → skor)
+│   │   └── presentation/              # pengaturan, cerita, kuis, hasil
+│   ├── listening/                     # ✅ tersambung API (audio dari backend)
+│   │   ├── data/                      # ListeningExercise, transkrip, ListeningRepository
+│   │   ├── application/               # ListeningSession, ListeningAudio (audioplayers)
+│   │   └── presentation/              # listening (intro → audio → soal → hasil)
+│   ├── speaking/presentation/         # izin mikrofon, percakapan (masih dummy)
 │   ├── profile/presentation/          # ✅ profil & keluar (ubah nama/password: belum)
 │   └── system/presentation/           # offline
 └── dev/                               # Alat developer, BUKAN untuk pengguna akhir
     ├── demo_scope.dart                # Akun & dashboard demo untuk galeri (tanpa server)
+    ├── demo_reading.dart              # Reading demo untuk galeri
+    ├── demo_listening.dart            # Listening demo untuk galeri (audio disimulasikan)
     ├── dummy_data.dart                # Data dummy sementara (sampai fitur tersambung ke API)
     ├── gallery_screen.dart            # Galeri 58 state desain (debug only)
     └── showcase/                      # Katalog komponen & banner AI
