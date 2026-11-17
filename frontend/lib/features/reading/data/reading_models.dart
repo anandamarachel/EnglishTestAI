@@ -1,3 +1,4 @@
+import 'package:english_day/core/models/choice_question.dart';
 import 'package:english_day/core/text/text_span_offsets.dart';
 
 /// Level chips on the settings screen and the backend difficulty they request.
@@ -55,26 +56,6 @@ class VocabEntry {
   final String example;
 }
 
-class ReadingOption {
-  const ReadingOption(this.id, this.text);
-  final String id;
-  final String text;
-}
-
-class ReadingQuestion {
-  const ReadingQuestion({required this.id, required this.text, required this.options});
-  final String id;
-  final String text;
-  final List<ReadingOption> options;
-
-  ReadingOption? option(String? id) {
-    for (final o in options) {
-      if (o.id == id) return o;
-    }
-    return null;
-  }
-}
-
 /// A ready Reading exercise: the story (with vocabulary) and its quiz.
 class ReadingStory {
   const ReadingStory({
@@ -91,7 +72,7 @@ class ReadingStory {
   final ReadingLevel level;
   final String topicName;
   final List<ReadingParagraph> paragraphs;
-  final List<ReadingQuestion> questions;
+  final List<ChoiceQuestion> questions;
 
   /// "Medium · Budaya"
   String get meta => '${level.name} · $topicName';
@@ -109,19 +90,7 @@ class ReadingStory {
         for (final item in (vocabulary?['items'] as List?) ?? const [])
           _VocabItem.fromJson(item as Map<String, dynamic>),
       ]),
-      questions: [
-        for (final q in exercise['questions'] as List)
-          if ((q as Map<String, dynamic>)['question_type'] == 'multiple_choice')
-            ReadingQuestion(
-              id: q['question_id'] as String,
-              text: q['question_text'] as String,
-              options: [
-                for (final o in q['options'] as List)
-                  ReadingOption((o as Map<String, dynamic>)['option_id'] as String,
-                      o['option_text'] as String),
-              ],
-            ),
-      ],
+      questions: ChoiceQuestion.listFromJson(exercise['questions'] as List?),
     );
   }
 }
@@ -188,32 +157,6 @@ List<ReadingParagraph> _splitPassage(String passage, List<_VocabItem> vocabulary
   }
   addParagraph(from, passage.length);
   return paragraphs;
-}
-
-/// The server's grading of one quiz answer (`AnswerFeedback`).
-class ReadingAnswer {
-  const ReadingAnswer({
-    required this.questionId,
-    required this.selectedOptionId,
-    required this.isCorrect,
-    required this.correctOptionId,
-    required this.explanation,
-  });
-
-  factory ReadingAnswer.fromFeedback(Map<String, dynamic> feedback, String? selectedOptionId) =>
-      ReadingAnswer(
-        questionId: feedback['question_id'] as String,
-        selectedOptionId: selectedOptionId,
-        isCorrect: feedback['is_correct'] == true,
-        correctOptionId: feedback['correct_option_id'] as String?,
-        explanation: (feedback['explanation'] as String?) ?? '',
-      );
-
-  final String questionId;
-  final String? selectedOptionId;
-  final bool isCorrect;
-  final String? correctOptionId;
-  final String explanation;
 }
 
 /// Final quiz result.

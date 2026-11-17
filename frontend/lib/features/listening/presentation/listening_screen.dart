@@ -1,65 +1,86 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:english_day/core/models/choice_question.dart';
+import 'package:english_day/core/network/api_exception.dart';
+import 'package:english_day/core/network/jobs.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/answer_widgets.dart';
 import 'package:english_day/core/widgets/app_button.dart';
 import 'package:english_day/core/widgets/common.dart';
-import 'package:english_day/dev/dummy_data.dart';
+import 'package:english_day/features/listening/application/listening_audio.dart';
+import 'package:english_day/features/listening/application/listening_session.dart';
+import 'package:english_day/features/listening/data/listening_repository.dart';
 
 enum ListeningPhase { intro, loading, slow, practice, audioError, result }
 
 enum ResultFocus { top, review, transcript }
 
-class ListeningScreen extends StatefulWidget {
+/// Listen to one AI conversation, answer its questions, then see the grading and
+/// the transcript (unlocked after submitting).
+class ListeningScreen extends ConsumerStatefulWidget {
   const ListeningScreen({
     super.key,
-    this.initialPhase = ListeningPhase.intro,
-    this.initialAnswers,
+    this.practice,
+    this.resumeAttemptId,
+    this.initialPhase,
     this.autoPlay = false,
     this.focus = ResultFocus.top,
     this.scrollToLast = false,
     this.freeze = false,
   });
 
-  final ListeningPhase initialPhase;
-  final List<int?>? initialAnswers;
+  /// Default: a new [ListeningSession] against the backend. The gallery passes a demo.
+  final ListeningPractice? practice;
+
+  /// Continue this saved attempt (dashboard "Lanjutkan").
+  final String? resumeAttemptId;
+
+  /// Default: intro, or loading when resuming. The gallery sets any phase directly.
+  final ListeningPhase? initialPhase;
   final bool autoPlay;
   final ResultFocus focus;
 
-  /// Scroll ke pertanyaan terakhir (state "locked").
+  /// Scroll to the last question ("locked" state).
   final bool scrollToLast;
 
-  /// Jika true, state loading tidak otomatis berlanjut (untuk galeri).
+  /// Gallery: stay in the loading state.
   final bool freeze;
 
   @override
-  State<ListeningScreen> createState() => _ListeningScreenState();
+  ConsumerState<ListeningScreen> createState() => _ListeningScreenState();
 }
 
-class _ListeningScreenState extends State<ListeningScreen> {
-  late ListeningPhase _phase = widget.initialPhase;
-  late final List<int?> _answers =
-      List.of(widget.initialAnswers ?? List<int?>.filled(ListeningDummy.questions.length, null));
+class _ListeningScreenState extends ConsumerState<ListeningScreen> {
+  static const _slowAfter = Duration(seconds: 10);
+
+  late final ListeningPractice _practice = widget.practice ??
+      ListeningSession(
+        ref.read(listeningRepositoryProvider),
+        ref.read(listeningAudioLoaderProvider),
+        resumeAttemptId: widget.resumeAttemptId,
+      );
+  late ListeningPhase _phase = widget.initialPhase ??
+      (widget.resumeAttemptId != null ? ListeningPhase.loading : ListeningPhase.intro);
 
   final _scroll = ScrollController();
   final _reviewKey = GlobalKey();
   final _transcriptKey = GlobalKey();
   final _lastQuestionKey = GlobalKey();
 
-  double _position = 42; // detik
-  bool _playing = false;
-  double _speed = 1.0;
-  Timer? _ticker;
-  Timer? _loadTimer;
+  ListeningAudio? _audio;
   Timer? _slowTimer;
+  bool _submitting = false;
+  int _run = 0;
 
   @override
   void initState() {
     super.initState();
+    _attachAudio();
     if (_phase == ListeningPhase.loading && !widget.freeze) _load();
-    if (widget.autoPlay) _play();
+    if (widget.autoPlay) _audio?.play();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final key = switch (widget.focus) {
         ResultFocus.review => _reviewKey,
@@ -73,85 +94,139 @@ class _ListeningScreenState extends State<ListeningScreen> {
 
   @override
   void dispose() {
-    _ticker?.cancel();
-    _loadTimer?.cancel();
     _slowTimer?.cancel();
+    _audio?.removeListener(_onAudio);
+    _practice.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
-  // ------------------------------------------------------ simulasi audio
-  void _load() {
-    setState(() {
-      _phase = ListeningPhase.loading;
-      _position = 0;
+  void _attachAudio() {
+    final audio = _practice.audio;
+    if (identical(audio, _audio)) return;
+    _audio?.removeListener(_onAudio);
+    _audio = audio?..addListener(_onAudio);
+  }
+
+  void _onAudio() {
+    if (mounted) setState(() {});
+  }
+
+  // ------------------------------------------------------------- loading
+  Future<void> _load() async {
+    final run = ++_run;
+    setState(() => _phase = ListeningPhase.loading);
+    _slowTimer?.cancel();
+    _slowTimer = Timer(_slowAfter, () {
+      if (mounted && _phase == ListeningPhase.loading) {
+        setState(() => _phase = ListeningPhase.slow);
+      }
     });
-    _slowTimer = Timer(const Duration(seconds: 10), () {
-      if (mounted) setState(() => _phase = ListeningPhase.slow);
-    });
-    _loadTimer = Timer(const Duration(milliseconds: 2000), () {
+    try {
+      await _practice.load();
+      if (!mounted || run != _run) return;
       _slowTimer?.cancel();
-      if (!mounted) return;
+      _attachAudio();
+      if (_practice.result != null) {
+        setState(() => _phase = ListeningPhase.result);
+        return;
+      }
       setState(() => _phase = ListeningPhase.practice);
-      _play();
-    });
+      _autoPlay();
+    } on OperationCancelledException {
+      return;
+    } on ListeningAudioException {
+      if (!mounted || run != _run) return;
+      _slowTimer?.cancel();
+      setState(() => _phase = ListeningPhase.audioError);
+    } catch (e) {
+      if (!mounted || run != _run) return;
+      _slowTimer?.cancel();
+      setState(() => _phase = ListeningPhase.intro);
+      if (e is ApiException && e.isSessionEnded) return; // the app-wide sheet shows
+      showAppSnack(
+          context,
+          e is ApiException && e.code == ApiException.network
+              ? e.userMessage
+              : 'Latihan belum bisa dibuat. Coba lagi dalam beberapa saat.');
+    }
+  }
+
+  /// Browsers may block playback that did not start from a tap: then stay paused.
+  Future<void> _autoPlay() async {
+    try {
+      await _audio?.play();
+    } catch (_) {}
   }
 
   void _cancelLoad() {
+    _run++;
     _slowTimer?.cancel();
-    _loadTimer?.cancel();
+    _practice.cancel();
     setState(() => _phase = ListeningPhase.intro);
   }
 
-  void _play() {
-    _ticker?.cancel();
-    if (_position >= ListeningDummy.durationSec) _position = 0;
-    setState(() => _playing = true);
-    _ticker = Timer.periodic(const Duration(milliseconds: 200), (t) {
-      setState(() {
-        _position += 0.2 * _speed;
-        if (_position >= ListeningDummy.durationSec) {
-          _position = ListeningDummy.durationSec.toDouble();
-          _playing = false;
-          t.cancel();
-        }
-      });
-    });
+  Future<void> _retryAudio() async {
+    try {
+      await _practice.reloadAudio();
+      if (!mounted) return;
+      _attachAudio();
+      setState(() => _phase = ListeningPhase.practice);
+      _autoPlay();
+    } catch (_) {
+      if (mounted) showAppSnack(context, 'Audio masih belum bisa dimuat. Coba lagi sebentar lagi.');
+    }
   }
 
-  void _pause() {
-    _ticker?.cancel();
-    setState(() => _playing = false);
+  // --------------------------------------------------------------- player
+  Future<void> _togglePlay() async {
+    final audio = _audio;
+    if (audio == null) return;
+    try {
+      audio.playing ? await audio.pause() : await audio.play();
+    } catch (_) {
+      if (mounted) setState(() => _phase = ListeningPhase.audioError);
+    }
   }
 
-  void _replay() {
-    setState(() => _position = 0);
-    if (_phase == ListeningPhase.practice) _play();
+  Future<void> _replay() async {
+    await _audio?.seek(Duration.zero);
+    if (!(_audio?.playing ?? true)) await _togglePlay();
   }
 
-  void _submit() {
-    if (_answers.contains(null)) {
+  // --------------------------------------------------------------- answers
+  Future<void> _submit() async {
+    final questions = _practice.exercise?.questions ?? const <ChoiceQuestion>[];
+    if (questions.any((q) => !_practice.selections.containsKey(q.id))) {
       showAppSnack(context, 'Jawab semua pertanyaan dulu, ya.');
       return;
     }
-    _pause();
-    setState(() => _phase = ListeningPhase.result);
-    _scroll.jumpTo(0);
+    setState(() => _submitting = true);
+    try {
+      await _practice.submit();
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _phase = ListeningPhase.result;
+      });
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      if (e is ApiException && e.isSessionEnded) return;
+      showAppSnack(
+          context,
+          e is ApiException && e.code == ApiException.network
+              ? e.userMessage
+              : 'Jawaban belum terkirim. Coba lagi.');
+    }
   }
 
-  void _restart() {
-    _ticker?.cancel();
-    setState(() {
-      for (var i = 0; i < _answers.length; i++) {
-        _answers[i] = null;
-      }
-      _playing = false;
-      _phase = ListeningPhase.intro;
-    });
-  }
+  void _restart() => Navigator.of(context)
+      .pushReplacement(MaterialPageRoute(builder: (_) => const ListeningScreen()));
 
-  String _fmt(double s) {
-    final sec = s.floor();
+  String _fmt(Duration d) {
+    final sec = d.inSeconds;
     return '${sec ~/ 60}:${(sec % 60).toString().padLeft(2, '0')}';
   }
 
@@ -167,7 +242,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
               controller: _scroll,
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               children: [
-                const MetaLabel(ListeningDummy.meta),
+                MetaLabel(_practice.meta),
                 const SizedBox(height: 24),
                 ..._phase == ListeningPhase.result ? _buildResult() : _buildPractice(),
               ],
@@ -184,7 +259,12 @@ class _ListeningScreenState extends State<ListeningScreen> {
         return const _DisabledLoadingButton(label: 'Menyiapkan audio…');
       case ListeningPhase.practice:
       case ListeningPhase.audioError:
-        return AppButton(label: 'Kirim jawaban', onPressed: _submit);
+        return AppButton(
+          label: 'Kirim jawaban',
+          loading: _submitting,
+          loadingLabel: 'Memeriksa jawaban…',
+          onPressed: _submit,
+        );
       case ListeningPhase.result:
         return AppButton(label: 'Latihan baru', onPressed: _restart);
     }
@@ -194,7 +274,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
-        const MetaLabel(ListeningDummy.meta),
+        MetaLabel(_practice.meta),
         const SizedBox(height: 80),
         const Align(
           alignment: Alignment.centerLeft,
@@ -204,8 +284,8 @@ class _ListeningScreenState extends State<ListeningScreen> {
         Text('Latih telingamu, satu percakapan dulu.', style: AppText.h2.copyWith(height: 1.35)),
         const SizedBox(height: 20),
         Text(
-          'Dengarkan percakapan di kantin sekolah, lalu jawab '
-          '${ListeningDummy.questions.length} pertanyaan. Kamu bisa memutar ulang audio.',
+          'Dengarkan percakapan singkat, lalu jawab 3 pertanyaan. '
+          'Kamu bisa memutar ulang audio.',
           style: AppText.body,
         ),
       ],
@@ -214,6 +294,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
 
   List<Widget> _buildPractice() {
     final loading = _phase == ListeningPhase.loading || _phase == ListeningPhase.slow;
+    final questions = _practice.exercise?.questions ?? const <ChoiceQuestion>[];
     return [
       if (_phase == ListeningPhase.slow) ...[
         StatusBanner.slow(onAction: _cancelLoad),
@@ -224,10 +305,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
           type: BannerType.error,
           message: 'Audio gagal dimuat karena koneksi terputus. Jawaban kamu tetap tersimpan.',
           actionLabel: 'Coba lagi',
-          onAction: () {
-            setState(() => _phase = ListeningPhase.practice);
-            _play();
-          },
+          onAction: _retryAudio,
         ),
         const SizedBox(height: 24),
       ],
@@ -239,13 +317,15 @@ class _ListeningScreenState extends State<ListeningScreen> {
         const SizedBox(height: 24),
         const SkeletonParagraph(groups: 2, withTitle: false),
       ] else ...[
-        for (var q = 0; q < ListeningDummy.questions.length; q++)
+        for (var q = 0; q < questions.length; q++)
           _QuestionBlock(
-            key: q == ListeningDummy.questions.length - 1 ? _lastQuestionKey : null,
+            key: q == questions.length - 1 ? _lastQuestionKey : null,
             number: q + 1,
-            question: ListeningDummy.questions[q],
-            selected: _answers[q],
-            onSelect: (i) => setState(() => _answers[q] = i),
+            question: questions[q],
+            selected: _practice.selections[questions[q].id],
+            onSelect: _submitting
+                ? null
+                : (optionId) => setState(() => _practice.select(questions[q].id, optionId)),
           ),
         const SizedBox(height: 8),
         Row(
@@ -263,21 +343,29 @@ class _ListeningScreenState extends State<ListeningScreen> {
   }
 
   Widget _buildPlayer(bool loading) {
-    final progress = loading ? 0.0 : _position / ListeningDummy.durationSec;
+    final audio = _audio;
+    final ready = !loading && audio != null && _phase != ListeningPhase.audioError;
+    final duration = audio?.duration ?? _practice.exercise?.duration ?? Duration.zero;
+    final position = audio?.position ?? Duration.zero;
+    final progress = !ready || duration == Duration.zero
+        ? 0.0
+        : (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
+    final playing = audio?.playing ?? false;
+    final speed = audio?.speed ?? 1.0;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(ListeningDummy.title, style: AppText.h3.copyWith(fontSize: 20)),
+          Text(_practice.exercise?.title ?? 'Listening', style: AppText.h3.copyWith(fontSize: 20)),
           const SizedBox(height: 16),
           Row(
             children: [
               Material(
-                color: loading ? AppColors.disabled : AppColors.primary,
+                color: ready ? AppColors.primary : AppColors.disabled,
                 shape: const CircleBorder(),
                 child: InkWell(
                   customBorder: const CircleBorder(),
-                  onTap: loading ? null : (_playing ? _pause : _play),
+                  onTap: ready ? _togglePlay : null,
                   child: SizedBox(
                     width: 56,
                     height: 56,
@@ -290,7 +378,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
                                   strokeWidth: 2, color: AppColors.textSecondary),
                             )
                           : Icon(
-                              _playing ? Icons.pause_rounded : Icons.play_arrow_outlined,
+                              playing ? Icons.pause_rounded : Icons.play_arrow_outlined,
                               color: Colors.white,
                               size: 34,
                             ),
@@ -314,9 +402,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      loading
-                          ? 'Menyiapkan audio…'
-                          : '${_fmt(_position)} / ${_fmt(ListeningDummy.durationSec.toDouble())}',
+                      loading ? 'Menyiapkan audio…' : '${_fmt(position)} / ${_fmt(duration)}',
                       style: AppText.small,
                     ),
                   ],
@@ -328,7 +414,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
           Row(
             children: [
               IconButton(
-                onPressed: loading ? null : _replay,
+                onPressed: ready ? _replay : null,
                 icon: const Icon(Icons.replay, color: AppColors.primary),
               ),
               const SizedBox(width: 8),
@@ -336,14 +422,14 @@ class _ListeningScreenState extends State<ListeningScreen> {
               const Spacer(),
               _SpeedChip(
                 label: '0,75×',
-                selected: _speed == 0.75,
-                onTap: () => setState(() => _speed = 0.75),
+                selected: speed == 0.75,
+                onTap: () => audio?.setSpeed(0.75),
               ),
               const SizedBox(width: 8),
               _SpeedChip(
                 label: '1×',
-                selected: _speed == 1.0,
-                onTap: () => setState(() => _speed = 1.0),
+                selected: speed == 1.0,
+                onTap: () => audio?.setSpeed(1.0),
               ),
             ],
           ),
@@ -353,15 +439,16 @@ class _ListeningScreenState extends State<ListeningScreen> {
   }
 
   List<Widget> _buildResult() {
-    const qs = ListeningDummy.questions;
-    final score = [for (var i = 0; i < qs.length; i++) _answers[i] == qs[i].correctIndex]
-        .where((e) => e)
-        .length;
-    final wrong = qs.length - score;
+    final result = _practice.result;
+    final exercise = _practice.exercise;
+    if (result == null || exercise == null) return const [];
+    final score = result.correct;
+    final wrong = result.total - score;
+    final questions = exercise.questions;
     return [
       Text('Hasil latihan', style: AppText.h3.copyWith(fontSize: 20)),
       const SizedBox(height: 8),
-      Align(alignment: Alignment.centerLeft, child: ScoreBadge('$score/${qs.length}')),
+      Align(alignment: Alignment.centerLeft, child: ScoreBadge('$score/${result.total}')),
       const SizedBox(height: 12),
       Text(
         wrong == 0
@@ -370,13 +457,14 @@ class _ListeningScreenState extends State<ListeningScreen> {
         style: AppText.body,
       ),
       const SizedBox(height: 20),
-      for (var q = 0; q < qs.length; q++)
-        _ReviewBlock(
-          key: q == 1 ? _reviewKey : null,
-          number: q + 1,
-          question: qs[q],
-          selected: _answers[q] ?? 0,
-        ),
+      for (var q = 0; q < questions.length; q++)
+        if (result.answers[questions[q].id] case final answer?)
+          _ReviewBlock(
+            key: q == 1 ? _reviewKey : null,
+            number: q + 1,
+            question: questions[q],
+            answer: answer,
+          ),
       const SizedBox(height: 8),
       Row(
         key: _transcriptKey,
@@ -387,15 +475,15 @@ class _ListeningScreenState extends State<ListeningScreen> {
         ],
       ),
       const SizedBox(height: 6),
-      Text('${ListeningDummy.title} · Kalimat bukti diberi stabilo.', style: AppText.small),
+      Text('${exercise.title} · Kalimat bukti diberi stabilo.', style: AppText.small),
       const SizedBox(height: 12),
-      for (final (line, evidence) in ListeningDummy.transcript)
+      for (final line in result.transcript)
         Container(
           width: double.infinity,
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.symmetric(vertical: 2),
-          color: evidence ? AppColors.highlight : null,
-          child: Text(line, style: AppText.serif(size: 18, height: 1.55)),
+          color: line.evidence ? AppColors.highlight : null,
+          child: Text(line.text, style: AppText.serif(size: 18, height: 1.55)),
         ),
     ];
   }
@@ -474,9 +562,11 @@ class _QuestionBlock extends StatelessWidget {
   });
 
   final int number;
-  final QuizQuestion question;
-  final int? selected;
-  final ValueChanged<int> onSelect;
+  final ChoiceQuestion question;
+
+  /// Selected option id.
+  final String? selected;
+  final ValueChanged<String>? onSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -487,13 +577,15 @@ class _QuestionBlock extends StatelessWidget {
         children: [
           Text('Pertanyaan $number', style: AppText.small),
           const SizedBox(height: 8),
-          Text(question.question, style: AppText.h3),
+          Text(question.text, style: AppText.h3),
           const SizedBox(height: 12),
           for (var i = 0; i < question.options.length; i++)
             AnswerOption(
-              label: question.options[i],
-              state: selected == i ? OptionState.selected : OptionState.normal,
-              onTap: () => onSelect(i),
+              label: '${optionLetter(i)}. ${question.options[i].text}',
+              state: selected == question.options[i].id
+                  ? OptionState.selected
+                  : OptionState.normal,
+              onTap: onSelect == null ? null : () => onSelect!(question.options[i].id),
             ),
         ],
       ),
@@ -506,16 +598,21 @@ class _ReviewBlock extends StatelessWidget {
     super.key,
     required this.number,
     required this.question,
-    required this.selected,
+    required this.answer,
   });
 
   final int number;
-  final QuizQuestion question;
-  final int selected;
+  final ChoiceQuestion question;
+  final GradedAnswer answer;
+
+  String _label(String? optionId) {
+    final i = question.options.indexWhere((o) => o.id == optionId);
+    return i < 0 ? '' : '${optionLetter(i)}. ${question.options[i].text}';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final correct = selected == question.correctIndex;
+    final correct = answer.isCorrect;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -523,15 +620,12 @@ class _ReviewBlock extends StatelessWidget {
         children: [
           Text('Pertanyaan $number', style: AppText.small),
           const SizedBox(height: 8),
-          Text(question.question, style: AppText.h3),
+          Text(question.text, style: AppText.h3),
           const SizedBox(height: 12),
-          AnswerOption(
-            label: question.options[question.correctIndex],
-            state: OptionState.correct,
-          ),
-          if (!correct)
-            AnswerOption(label: question.options[selected], state: OptionState.wrong),
-          AnswerFeedback(correct: correct, message: question.explanation),
+          AnswerOption(label: _label(answer.correctOptionId), state: OptionState.correct),
+          if (!correct && answer.selectedOptionId != null)
+            AnswerOption(label: _label(answer.selectedOptionId), state: OptionState.wrong),
+          AnswerFeedback(correct: correct, message: answer.explanation),
         ],
       ),
     );

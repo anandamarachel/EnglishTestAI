@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:english_day/core/models/choice_question.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/answer_widgets.dart';
 import 'package:english_day/core/widgets/app_button.dart';
@@ -20,7 +21,7 @@ class ReadingResultScreen extends StatelessWidget {
   final ReadingStory story;
 
   /// Graded answers by question id.
-  final Map<String, ReadingAnswer> answers;
+  final Map<String, GradedAnswer> answers;
   final ReadingSummary summary;
 
   @override
@@ -76,8 +77,8 @@ class ReadingResultScreen extends StatelessWidget {
 
 class _ResultItem extends StatelessWidget {
   const _ResultItem({required this.question, required this.answer});
-  final ReadingQuestion question;
-  final ReadingAnswer answer;
+  final ChoiceQuestion question;
+  final GradedAnswer answer;
 
   @override
   Widget build(BuildContext context) {

@@ -58,13 +58,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
   void _push(Widget page) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
 
   /// Reopens the saved attempt in its skill's screen.
-  // TODO(api): Listening and Speaking still open their dummy screens.
+  // TODO(api): Speaking still opens its dummy screen.
   Widget _resumePage(AttemptSummary resume) => switch (resume.skill) {
         'writing' => WritingInputScreen(resumeAttemptId: resume.attemptId),
         'reading' => ReadingStoryScreen(
             practice: ReadingSession(ref.read(readingRepositoryProvider),
                 resumeAttemptId: resume.attemptId)),
-        'listening' => const ListeningScreen(),
+        'listening' => ListeningScreen(resumeAttemptId: resume.attemptId),
         _ => const MicPermissionScreen(),
       };
 
