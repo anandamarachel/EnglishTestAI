@@ -1,22 +1,30 @@
 import 'package:flutter/material.dart';
 
+import 'package:english_day/core/network/api_exception.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/answer_widgets.dart';
 import 'package:english_day/core/widgets/app_button.dart';
 import 'package:english_day/core/widgets/common.dart';
-import 'package:english_day/dev/dummy_data.dart';
+import 'package:english_day/features/reading/application/reading_session.dart';
+import 'package:english_day/features/reading/data/reading_models.dart';
 import 'package:english_day/features/reading/presentation/reading_result_screen.dart';
 
 // -------------------------------------------------------------------- Quiz
+/// One question at a time; the server grades each answer when it is sent.
 class ReadingQuizScreen extends StatefulWidget {
   const ReadingQuizScreen({
     super.key,
-    this.initialIndex = 0,
+    required this.practice,
+    this.initialIndex,
     this.initialSelected,
     this.initialSubmitted = false,
   });
 
-  final int initialIndex;
+  /// Must have a loaded story.
+  final ReadingPractice practice;
+
+  /// Design gallery only: question index / selected option index / already sent.
+  final int? initialIndex;
   final int? initialSelected;
   final bool initialSubmitted;
 
@@ -25,58 +33,104 @@ class ReadingQuizScreen extends StatefulWidget {
 }
 
 class _ReadingQuizScreenState extends State<ReadingQuizScreen> {
-  late int _index = widget.initialIndex;
-  late int? _selected = widget.initialSelected;
-  late bool _submitted = widget.initialSubmitted;
-  late final List<int?> _answers = List.filled(ReadingDummy.quiz.length, null);
+  late final ReadingStory _story = widget.practice.story!;
+  late int _index = widget.initialIndex ?? widget.practice.nextQuestionIndex;
+  String? _selected;
+  ReadingAnswer? _answer;
+  bool _sending = false;
 
-  QuizQuestion get _q => ReadingDummy.quiz[_index];
-  int get _total => ReadingDummy.quiz.length;
+  ReadingQuestion get _q => _story.questions[_index];
+  int get _total => _story.questions.length;
 
-  void _submit() => setState(() {
-        _submitted = true;
-        _answers[_index] = _selected;
-      });
-
-  void _next() {
-    if (_index == _total - 1) {
-      // Isi jawaban kosong (jika dibuka dari galeri) dengan jawaban dummy.
-      final answers = [
-        for (var i = 0; i < _total; i++)
-          _answers[i] ?? (i == 3 ? 0 : ReadingDummy.quiz[i].correctIndex),
-      ];
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => ReadingResultScreen(answers: answers)),
-      );
-      return;
+  @override
+  void initState() {
+    super.initState();
+    final i = widget.initialSelected;
+    if (i != null) _selected = _q.options[i].id;
+    _answer = widget.practice.answers[_q.id];
+    if (widget.initialSubmitted && _answer == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _submit());
     }
-    setState(() {
-      _index++;
-      _selected = null;
-      _submitted = false;
-    });
   }
 
-  OptionState _optionState(int i) {
-    if (!_submitted) return _selected == i ? OptionState.selected : OptionState.normal;
-    if (i == _q.correctIndex) return OptionState.correct;
-    if (i == _selected) return OptionState.wrong;
+  Future<void> _submit() async {
+    final selected = _selected;
+    if (selected == null) return;
+    setState(() => _sending = true);
+    try {
+      final answer = await widget.practice.answer(_q, selected);
+      if (!mounted) return;
+      setState(() {
+        _answer = answer;
+        _sending = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      _showError(e, 'Jawaban belum terkirim. Coba lagi.');
+    }
+  }
+
+  Future<void> _next() async {
+    if (_index < _total - 1) {
+      setState(() {
+        _index++;
+        _answer = widget.practice.answers[_q.id];
+        _selected = _answer?.selectedOptionId;
+      });
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      final summary = await widget.practice.finish();
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => ReadingResultScreen(
+          story: _story,
+          answers: widget.practice.answers,
+          summary: summary,
+        ),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      _showError(e, 'Hasil belum bisa dibuat. Coba lagi.');
+    }
+  }
+
+  void _showError(Object error, String fallback) {
+    if (error is ApiException && error.isSessionEnded) return; // the app-wide sheet shows
+    showAppSnack(context,
+        error is ApiException && error.code == ApiException.network ? error.userMessage : fallback);
+  }
+
+  OptionState _optionState(ReadingOption option) {
+    final answer = _answer;
+    if (answer == null) {
+      return _selected == option.id ? OptionState.selected : OptionState.normal;
+    }
+    if (option.id == answer.correctOptionId) return OptionState.correct;
+    if (option.id == answer.selectedOptionId) return OptionState.wrong;
     return OptionState.normal;
   }
 
   @override
   Widget build(BuildContext context) {
-    final correct = _selected == _q.correctIndex;
+    final answer = _answer;
     return AppScaffold(
       title: 'Kuis',
       leadingIcon: Icons.close,
-      bottom: _submitted
+      bottom: answer != null
           ? AppButton(
               label: _index == _total - 1 ? 'Lihat hasil' : 'Soal berikutnya',
+              loading: _sending,
+              loadingLabel: 'Menghitung hasil…',
               onPressed: _next,
             )
           : AppButton(
               label: 'Kirim jawaban',
+              loading: _sending,
+              loadingLabel: 'Memeriksa…',
               onPressed: _selected == null ? null : _submit,
             ),
       body: ListView(
@@ -84,12 +138,15 @@ class _ReadingQuizScreenState extends State<ReadingQuizScreen> {
         children: [
           Row(
             children: [
+              Text('Soal ${_index + 1} dari $_total',
+                  style: AppText.sans(size: 14, weight: FontWeight.w600)),
+              const SizedBox(width: 12),
               Expanded(
-                child: Text('Soal ${_index + 1} dari $_total',
-                    style: AppText.sans(size: 14, weight: FontWeight.w600)),
+                child: Text(_story.title,
+                    textAlign: TextAlign.right,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.sans(size: 13, color: AppColors.textSecondary)),
               ),
-              Text(ReadingDummy.storyTitle,
-                  style: AppText.sans(size: 13, color: AppColors.textSecondary)),
             ],
           ),
           const SizedBox(height: 10),
@@ -103,23 +160,25 @@ class _ReadingQuizScreenState extends State<ReadingQuizScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          Text(_q.question, style: AppText.h2.copyWith(height: 1.35)),
+          Text(_q.text, style: AppText.h2.copyWith(height: 1.35)),
           const SizedBox(height: 20),
           for (var i = 0; i < _q.options.length; i++)
             AnswerOption(
-              label: _q.options[i],
-              state: _optionState(i),
-              onTap: _submitted ? null : () => setState(() => _selected = i),
+              label: '${optionLetter(i)}. ${_q.options[i].text}',
+              state: _optionState(_q.options[i]),
+              onTap: answer != null || _sending
+                  ? null
+                  : () => setState(() => _selected = _q.options[i].id),
             ),
-          if (_submitted) ...[
+          if (answer != null) ...[
             const SizedBox(height: 12),
-            AnswerFeedback(
-              correct: correct,
-              message: correct ? _q.explanation : (_q.wrongHint ?? _q.explanation),
-            ),
+            AnswerFeedback(correct: answer.isCorrect, message: answer.explanation),
           ],
         ],
       ),
     );
   }
 }
+
+/// A, B, C, ... for option labels as in the design.
+String optionLetter(int index) => String.fromCharCode(65 + index);

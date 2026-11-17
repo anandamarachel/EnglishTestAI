@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:english_day/core/navigation/route_observer.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/features/auth/application/session_controller.dart';
 import 'package:english_day/features/auth/presentation/splash_screen.dart';
@@ -31,6 +32,7 @@ class _EnglishDayAppState extends ConsumerState<EnglishDayApp> {
 
     return MaterialApp(
       navigatorKey: _navigatorKey,
+      navigatorObservers: [appRouteObserver],
       title: 'English Day',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,

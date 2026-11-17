@@ -57,20 +57,7 @@ class WritingDummy {
 }
 
 // ---------------------------------------------------------------- Reading
-class ReadingLevel {
-  const ReadingLevel(this.name, this.cefr);
-  final String name;
-  final String cefr;
-}
-
 class ReadingDummy {
-  static const levels = [
-    ReadingLevel('Easy', 'A2'),
-    ReadingLevel('Medium', 'B1'),
-    ReadingLevel('Hard', 'B2'),
-  ];
-  static const topics = ['Sekolah', 'Olahraga', 'Teknologi', 'Budaya', 'Alam', 'Acak'];
-
   static const storyTitle = 'The Lost Kite';
 
   /// Paragraf cerita. Kata dalam [kurung siku] = kosakata berstabilo.

@@ -1,38 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/app_button.dart';
 import 'package:english_day/core/widgets/app_text_field.dart';
 import 'package:english_day/core/widgets/common.dart';
-import 'package:english_day/dev/dummy_data.dart';
+import 'package:english_day/features/reading/application/reading_session.dart';
+import 'package:english_day/features/reading/data/reading_models.dart';
+import 'package:english_day/features/reading/data/reading_repository.dart';
 import 'package:english_day/features/reading/presentation/reading_story_screen.dart';
 
 // ---------------------------------------------------------------- Settings
-class ReadingSettingsScreen extends StatefulWidget {
+class ReadingSettingsScreen extends ConsumerStatefulWidget {
   const ReadingSettingsScreen({super.key});
 
   @override
-  State<ReadingSettingsScreen> createState() => _ReadingSettingsScreenState();
+  ConsumerState<ReadingSettingsScreen> createState() => _ReadingSettingsScreenState();
 }
 
-class _ReadingSettingsScreenState extends State<ReadingSettingsScreen> {
+class _ReadingSettingsScreenState extends ConsumerState<ReadingSettingsScreen> {
   int _level = 1;
   String? _topic = 'Budaya';
+
+  void _create() {
+    final practice = ReadingSession(
+      ref.read(readingRepositoryProvider),
+      request: ReadingRequest(level: ReadingLevel.all[_level], topic: _topic),
+    );
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ReadingStoryScreen(practice: practice),
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
       title: 'Reading',
-      bottom: AppButton(
-        label: 'Buat cerita',
-        onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => ReadingStoryScreen(
-            level: ReadingDummy.levels[_level].name,
-            topic: _topic ?? 'Acak',
-            initialState: StoryState.loading,
-          ),
-        )),
-      ),
+      bottom: AppButton(label: 'Buat cerita', onPressed: _create),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
@@ -41,10 +45,10 @@ class _ReadingSettingsScreenState extends State<ReadingSettingsScreen> {
           Wrap(
             spacing: 8,
             children: [
-              for (var i = 0; i < ReadingDummy.levels.length; i++)
+              for (var i = 0; i < ReadingLevel.all.length; i++)
                 AppChoiceChip(
-                  label: ReadingDummy.levels[i].name,
-                  subtitle: ReadingDummy.levels[i].cefr,
+                  label: ReadingLevel.all[i].name,
+                  subtitle: ReadingLevel.all[i].cefr,
                   selected: _level == i,
                   onTap: () => setState(() => _level = i),
                 ),
@@ -57,7 +61,7 @@ class _ReadingSettingsScreenState extends State<ReadingSettingsScreen> {
             spacing: 8,
             runSpacing: 12,
             children: [
-              for (final t in ReadingDummy.topics)
+              for (final t in readingTopics)
                 AppChoiceChip(
                   label: t,
                   selected: _topic == t,
