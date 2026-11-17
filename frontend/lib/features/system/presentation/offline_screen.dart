@@ -5,7 +5,11 @@ import 'package:english_day/core/widgets/common.dart';
 
 // ----------------------------------------------------------------- Offline
 class OfflineScreen extends StatefulWidget {
-  const OfflineScreen({super.key});
+  const OfflineScreen({super.key, this.onRetry});
+
+  /// Tries to reach the server again; returns true when it worked (the caller then
+  /// navigates away). Null in the design gallery.
+  final Future<bool> Function()? onRetry;
 
   @override
   State<OfflineScreen> createState() => _OfflineScreenState();
@@ -16,10 +20,13 @@ class _OfflineScreenState extends State<OfflineScreen> {
 
   Future<void> _retry() async {
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (!mounted) return;
+    final retry = widget.onRetry;
+    final ok = retry == null
+        ? await Future.delayed(const Duration(milliseconds: 1500), () => false)
+        : await retry();
+    if (!mounted || ok) return;
     setState(() => _loading = false);
-    showAppSnack(context, 'Masih offline (dummy).');
+    showAppSnack(context, 'Masih belum terhubung. Coba lagi sebentar lagi.');
   }
 
   @override

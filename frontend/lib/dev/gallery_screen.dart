@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:english_day/core/config/app_info.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/common.dart';
+import 'package:english_day/dev/demo_scope.dart';
 import 'package:english_day/dev/dummy_data.dart';
 import 'package:english_day/dev/showcase/ai_status_showcase_screen.dart';
 import 'package:english_day/dev/showcase/answers_showcase_screen.dart';
@@ -42,13 +43,13 @@ class GalleryScreen extends StatelessWidget {
       ('register-error', (_) => const RegisterScreen(showErrors: true)),
     ],
     'Dashboard': [
-      ('lanjutkan latihan', (_) => const DashboardScreen()),
-      ('pengguna baru', (_) => const DashboardScreen(hasProgress: false)),
+      ('lanjutkan latihan', (_) => const DemoScope(child: DashboardScreen())),
+      ('pengguna baru', (_) => const DemoScope(withResume: false, child: DashboardScreen())),
     ],
     'Global': [
       ('banner AI', (_) => const AiStatusScreen()),
       ('offline', (_) => const OfflineScreen()),
-      ('sesi habis', (_) => const DashboardScreen(showSessionExpired: true)),
+      ('sesi habis', (_) => const DemoScope(child: DashboardScreen(showSessionExpired: true))),
       (
         'teks disalin',
         (_) => const WritingResultScreen(
@@ -68,8 +69,8 @@ class GalleryScreen extends StatelessWidget {
       ('tombol', (_) => const ButtonsShowcaseScreen()),
     ],
     'Profil': [
-      ('profil', (_) => const ProfileScreen()),
-      ('konfirmasi keluar', (_) => const ProfileScreen(showLogoutConfirm: true)),
+      ('profil', (_) => const DemoScope(child: ProfileScreen())),
+      ('konfirmasi keluar', (_) => const DemoScope(child: ProfileScreen(showLogoutConfirm: true))),
     ],
     'Writing': [
       ('input empty', (_) => const WritingInputScreen()),
