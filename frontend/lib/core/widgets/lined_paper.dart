@@ -80,10 +80,13 @@ class LinedText extends StatelessWidget {
 
 /// Satu token teks pada hasil koreksi.
 class CorrectionToken {
-  const CorrectionToken(this.text, {this.correction, this.ruleId});
+  const CorrectionToken(this.text, {this.correction, this.ruleId, this.trailingSpace = true});
   final String text;
   final String? correction;
   final String? ruleId;
+
+  /// False when the next token follows without a space (e.g. "friends" + ",").
+  final bool trailingSpace;
   bool get isWrong => correction != null;
 }
 
@@ -128,7 +131,7 @@ class CorrectionText extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${t.text} ',
+                              '${t.text}${t.trailingSpace ? ' ' : ''}',
                               style: style.copyWith(
                                 decoration: TextDecoration.lineThrough,
                                 decorationColor: AppColors.error,
@@ -143,7 +146,7 @@ class CorrectionText extends StatelessWidget {
                     : Column(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          Text('${t.text} ', style: style),
+                          Text('${t.text}${t.trailingSpace ? ' ' : ''}', style: style),
                           const SizedBox(height: 8),
                         ],
                       ),

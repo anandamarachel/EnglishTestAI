@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -7,20 +5,21 @@ import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/app_button.dart';
 import 'package:english_day/core/widgets/common.dart';
 import 'package:english_day/core/widgets/lined_paper.dart';
-import 'package:english_day/dev/dummy_data.dart';
+import 'package:english_day/features/writing/data/writing_result.dart';
 
 // ----------------------------------------------------------- Result screen
+/// The AI corrections of one submitted text. Pops with 'rewrite' or 'edit'.
 class WritingResultScreen extends StatefulWidget {
   const WritingResultScreen({
     super.key,
-    required this.text,
-    this.startLoading = true,
+    required this.result,
     this.openRuleSheet = false,
     this.autoCopy = false,
   });
 
-  final String text;
-  final bool startLoading;
+  /// Null shows the loading skeleton (design gallery only: the input screen opens
+  /// this screen once the evaluation is ready).
+  final WritingResult? result;
   final bool openRuleSheet;
   final bool autoCopy;
 
@@ -29,35 +28,27 @@ class WritingResultScreen extends StatefulWidget {
 }
 
 class _WritingResultScreenState extends State<WritingResultScreen> {
-  late bool _loading = widget.startLoading;
-
-  bool get _hasCorrections =>
-      widget.text.trim().toLowerCase() == WritingDummy.sampleInput.toLowerCase();
-
-  int get _correctionCount => WritingDummy.tokens.where((t) => t.isWrong).length;
-
   @override
   void initState() {
     super.initState();
-    if (_loading) {
-      Future.delayed(const Duration(milliseconds: 1400), () {
-        if (mounted) setState(() => _loading = false);
-      });
-    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.openRuleSheet) _showRule(WritingDummy.tokens[2]);
+      final result = widget.result;
+      if (widget.openRuleSheet && result != null && result.hasCorrections) {
+        _showRule(result.tokens.firstWhere((t) => t.isWrong));
+      }
       if (widget.autoCopy) _copy();
     });
   }
 
   void _copy() {
-    Clipboard.setData(ClipboardData(
-        text: _hasCorrections ? WritingDummy.correctedText : widget.text));
+    final result = widget.result;
+    if (result == null) return;
+    Clipboard.setData(ClipboardData(text: result.bestText));
     showAppSnack(context, 'Teks disalin.');
   }
 
   void _showRule(CorrectionToken token) {
-    final rule = WritingDummy.rules[token.ruleId];
+    final rule = widget.result?.correctionFor(token);
     if (rule == null) return;
     showModalBottomSheet(
       context: context,
@@ -119,14 +110,11 @@ class _WritingResultScreenState extends State<WritingResultScreen> {
               label: 'Edit teks ini', onPressed: () => Navigator.pop(context, 'edit')),
         ],
       ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 250),
-        child: _loading
-            ? _buildLoading()
-            : _hasCorrections
-                ? _buildCorrections()
-                : _buildCorrect(),
-      ),
+      body: switch (widget.result) {
+        null => _buildLoading(),
+        final r when r.hasCorrections => _buildCorrections(r),
+        final r => _buildCorrect(r),
+      },
     );
   }
 
@@ -162,7 +150,7 @@ class _WritingResultScreenState extends State<WritingResultScreen> {
     );
   }
 
-  Widget _buildCorrect() {
+  Widget _buildCorrect(WritingResult result) {
     return ListView(
       key: const ValueKey('correct'),
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
@@ -191,21 +179,21 @@ class _WritingResultScreenState extends State<WritingResultScreen> {
           ],
         ),
         const SizedBox(height: 20),
-        LinedText(widget.text, minLines: 5),
+        LinedText(result.text, minLines: 5),
         const SizedBox(height: 24),
         AppButton.secondary(label: 'Salin teks', onPressed: _copy),
       ],
     );
   }
 
-  Widget _buildCorrections() {
+  Widget _buildCorrections(WritingResult result) {
     return ListView(
       key: const ValueKey('corrections'),
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
-        Text('$_correctionCount bagian perlu diperbaiki', style: AppText.h3),
+        Text('${result.correctionCount} bagian perlu diperbaiki', style: AppText.h3),
         const SizedBox(height: 20),
-        CorrectionText(tokens: WritingDummy.tokens, onTapCorrection: _showRule),
+        CorrectionText(tokens: result.tokens, onTapCorrection: _showRule),
         const SizedBox(height: 16),
         Text('Ketuk kata yang dicoret untuk memahami koreksinya.', style: AppText.small),
         const SizedBox(height: 28),
@@ -220,7 +208,7 @@ class _WritingResultScreenState extends State<WritingResultScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        Text(WritingDummy.correctedText,
+        Text(result.bestText,
             style: AppText.serif(size: 18, color: AppColors.primary, height: 1.6)),
       ],
     );
