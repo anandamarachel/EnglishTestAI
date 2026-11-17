@@ -2,9 +2,10 @@
 
 Implementasi Frontend Flutter lengkap untuk aplikasi pembelajaran bahasa Inggris **English Day** SMAN 10 Gowa, dislicing secara presisi 1:1 dari 58 desain visual pada folder [`docs/design/`](../docs/design/) di root repo.
 
-Login, dashboard, profil, Writing, Reading, dan Listening sudah tersambung ke backend
-(`/api/v1`, lihat [Menghubungkan ke backend](#menghubungkan-ke-backend)). Speaking masih
-memakai data dummy. Galeri desain (debug) selalu memakai data demo tanpa server.
+Login, dashboard, profil, Writing, Reading, Listening, dan Speaking sudah tersambung ke
+backend (`/api/v1`, lihat [Menghubungkan ke backend](#menghubungkan-ke-backend)). Galeri
+desain (debug) selalu memakai data demo tanpa server. Belum ada: ubah nama/password di
+Profil, dan layar hasil evaluasi Speaking (belum ada desainnya).
 
 ---
 
@@ -48,7 +49,7 @@ Aplikasi mencakup seluruh state visual yang dirancang dalam folder desain:
 ### 5. Speaking (Latihan Berbicara)
 - **Izin Mikrofon** (`Izin mikrofon · permintaan.png`, `ditolak permanen.png`) — Layar persetujuan akses mikrofon dan penanganan izin ditolak permanen.
 - **Percakapan Speaking** (`Speaking · empty.png`, `idle.png`) — Bubble obrolan dua arah dengan tombol audio AI.
-- **Merekam Suara** (`Speaking · recording.png`) — Animasi sound wave, tombol stop, dan live transcription ucapan pengguna.
+- **Merekam Suara** (`Speaking · recording.png`) — Animasi sound wave dan tombol stop. Transkrip live hanya ada di galeri: backend belum mendukungnya, jadi transkrip muncul setelah rekaman dikirim.
 - **Memproses & AI Berbicara** (`Speaking · processing.png`, `speaking.png`) — State AI menganalisis dan merespons audio.
 - **Slow & Error** (`Speaking · slow.png`, `error.png`) — Notifikasi koneksi lambat dan deteksi suara tidak terdengar jelas.
 
@@ -104,7 +105,7 @@ flutter run -d chrome --web-port 5000
 
 ### Menghubungkan ke backend
 
-Login, register, dashboard, profil, Writing, Reading dan Listening memakai API backend
+Login, register, dashboard, profil, Writing, Reading, Listening dan Speaking memakai API backend
 (`/api/v1`). Jalankan backend dulu (butuh **Docker Desktop**), lihat [README root](../README.md):
 
 ```bash
@@ -138,7 +139,8 @@ soal, koreksi dan audio hanya contoh (koreksi Writing cuma mengenali beberapa po
 berupa bunyi "beep"). Untuk AI sungguhan isi `AI_PROVIDER=router` dan `ROUTER_API_KEY=...`
 di `backend/.env` (minta key ke tim backend), lalu `make restart`. Aplikasi tidak perlu diubah.
 
-**Setelah menarik perubahan yang menambah package** (mis. `audioplayers` untuk Listening):
+**Setelah menarik perubahan yang menambah package** (mis. `audioplayers` untuk Listening,
+`record` untuk Speaking):
 hentikan `flutter run` (`q`) lalu jalankan lagi; hot restart (`R`) tidak cukup untuk
 plugin baru.
 
@@ -197,14 +199,18 @@ lib/
 │   │   ├── data/                      # ListeningExercise, transkrip, ListeningRepository
 │   │   ├── application/               # ListeningSession, ListeningAudio (audioplayers)
 │   │   └── presentation/              # listening (intro → audio → soal → hasil)
-│   ├── speaking/presentation/         # izin mikrofon, percakapan (masih dummy)
+│   ├── speaking/                      # ✅ tersambung API (rekam suara → balasan AI)
+│   │   ├── data/                      # SpeakingMessage, SpeakingRepository
+│   │   ├── application/               # SpeakingSession, VoiceRecorder (record) / VoicePlayer
+│   │   └── presentation/              # izin mikrofon, percakapan
 │   ├── profile/presentation/          # ✅ profil & keluar (ubah nama/password: belum)
 │   └── system/presentation/           # offline
 └── dev/                               # Alat developer, BUKAN untuk pengguna akhir
     ├── demo_scope.dart                # Akun & dashboard demo untuk galeri (tanpa server)
     ├── demo_reading.dart              # Reading demo untuk galeri
     ├── demo_listening.dart            # Listening demo untuk galeri (audio disimulasikan)
-    ├── dummy_data.dart                # Data dummy sementara (sampai fitur tersambung ke API)
+    ├── demo_speaking.dart             # Speaking demo untuk galeri (tanpa mic/server)
+    ├── dummy_data.dart                # Isi contoh untuk galeri (tidak dipakai fitur)
     ├── gallery_screen.dart            # Galeri 58 state desain (debug only)
     └── showcase/                      # Katalog komponen & banner AI
 ```
@@ -215,8 +221,9 @@ Aturan untuk anggota tim:
   dari satu fitur masuk ke `core/widgets/`.
 - Saat sebuah fitur disambungkan ke API, tambahkan `features/<fitur>/data/` (model +
   repository) dan `features/<fitur>/application/` (provider/controller Riverpod).
-- Kode di `features/` yang masih meng-import `dev/dummy_data.dart` berarti **belum
-  tersambung ke API**. Cek sisa pekerjaan dengan `grep -rl "dev/dummy_data" lib/features`.
+- Kode di `features/` tidak boleh memakai data dummy/demo dari `lib/dev/` (hanya untuk
+  galeri). Satu-satunya pengecualian: Profil membuka galeri saat debug. Cek dengan
+  `grep -rl "english_day/dev/" lib/features` (hanya `profile_screen.dart`).
 - Pakai import `package:english_day/...` (bukan relatif) supaya aman saat file dipindah.
 
 ## 🧪 Test
