@@ -142,6 +142,9 @@ class ApiClient {
     if (fresh == null) return handler.next(error);
 
     try {
+      final data = request.data;
+      // A multipart body can be sent only once: resend a copy.
+      if (data is FormData) request.data = data.clone();
       request
         ..headers['Authorization'] = 'Bearer ${fresh.accessToken}'
         ..extra['retried'] = true;
