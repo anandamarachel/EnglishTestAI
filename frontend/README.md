@@ -4,8 +4,9 @@ Implementasi Frontend Flutter lengkap untuk aplikasi pembelajaran bahasa Inggris
 
 Login, dashboard, profil, Writing, Reading, Listening, dan Speaking sudah tersambung ke
 backend (`/api/v1`, lihat [Menghubungkan ke backend](#menghubungkan-ke-backend)). Galeri
-desain (debug) selalu memakai data demo tanpa server. Belum ada: ubah nama/password di
-Profil, dan layar hasil evaluasi Speaking (belum ada desainnya).
+desain (debug) selalu memakai data demo tanpa server. Layar tambahan tanpa desain di
+`docs/design/` (dibuat dari komponen yang sama): ubah nama, ubah password, reset password
+dengan kode dari email, dan hasil Speaking.
 
 ---
 
@@ -183,7 +184,7 @@ lib/
 │   ├── auth/                          # ✅ tersambung API
 │   │   ├── data/                      # User, AuthRepository (/auth/*, /users/me)
 │   │   ├── application/               # SessionController (status login seluruh app)
-│   │   └── presentation/              # splash, login, register
+│   │   └── presentation/              # splash, login, register, reset password
 │   ├── dashboard/                     # ✅ tersambung API
 │   │   ├── data/dashboard.dart        # DashboardData, dashboardProvider (GET /dashboard)
 │   │   └── presentation/              # dashboard (+ sheet sesi habis)
@@ -202,8 +203,8 @@ lib/
 │   ├── speaking/                      # ✅ tersambung API (rekam suara → balasan AI)
 │   │   ├── data/                      # SpeakingMessage, SpeakingRepository
 │   │   ├── application/               # SpeakingSession, VoiceRecorder (record) / VoicePlayer
-│   │   └── presentation/              # izin mikrofon, percakapan
-│   ├── profile/presentation/          # ✅ profil & keluar (ubah nama/password: belum)
+│   │   └── presentation/              # izin mikrofon, percakapan, hasil
+│   ├── profile/presentation/          # ✅ profil, ubah nama, ubah password, keluar
 │   └── system/presentation/           # offline
 └── dev/                               # Alat developer, BUKAN untuk pengguna akhir
     ├── demo_scope.dart                # Akun & dashboard demo untuk galeri (tanpa server)

@@ -48,8 +48,12 @@ abstract interface class SpeakingPractice {
   Future<void> play(SpeakingMessage message);
   Future<void> stopPlayback();
 
-  /// Ends the conversation (the server evaluates it) when the student spoke at least once.
-  Future<void> finish();
+  /// Ends the conversation when the student spoke at least once and returns true:
+  /// the server then evaluates it ([evaluation]). False: nothing to evaluate.
+  Future<bool> finish();
+
+  /// Waits for the evaluation queued by [finish].
+  Future<SpeakingEvaluation> evaluation();
   void dispose();
 }
 
@@ -82,6 +86,7 @@ class SpeakingSession implements SpeakingPractice {
   ({Uint8List wav, String clientKey, String key})? _pendingTurn;
   String? _turnJobId;
   String? _finishKey;
+  String? _evaluationJobId;
   final _audioCache = <String, Uint8List>{};
   int _run = 0;
 
@@ -224,12 +229,23 @@ class SpeakingSession implements SpeakingPractice {
   Future<void> stopPlayback() => _player.stop();
 
   @override
-  Future<void> finish() async {
+  Future<bool> finish() async {
     await stopPlayback();
     final attemptId = _attemptId;
-    if (attemptId == null || !_messages.any((m) => !m.fromAi && m.text.isNotEmpty)) return;
-    await _repo.finish(attemptId, _finishKey ??= ApiClient.newIdempotencyKey());
+    if (attemptId == null || !_messages.any((m) => !m.fromAi && m.text.isNotEmpty)) return false;
+    _evaluationJobId = await _repo.finish(attemptId, _finishKey ??= ApiClient.newIdempotencyKey());
     _finishKey = null;
+    return true;
+  }
+
+  @override
+  Future<SpeakingEvaluation> evaluation() async {
+    final jobId = _evaluationJobId;
+    if (jobId != null) {
+      await _repo.waitJob(jobId);
+      _evaluationJobId = null;
+    }
+    return _repo.evaluation(_attemptId!);
   }
 
   @override

@@ -9,6 +9,8 @@ import 'package:english_day/core/widgets/common.dart';
 import 'package:english_day/dev/gallery_screen.dart';
 import 'package:english_day/features/auth/application/session_controller.dart';
 import 'package:english_day/features/auth/presentation/login_screen.dart';
+import 'package:english_day/features/profile/presentation/change_password_screen.dart';
+import 'package:english_day/features/profile/presentation/edit_name_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key, this.showLogoutConfirm = false});
@@ -107,14 +109,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 _ProfileItem(
                   icon: Icons.person_outline,
                   label: 'Ubah nama',
-                  // TODO(api): PATCH /users/me once the edit-name screen is designed.
-                  onTap: () => showAppSnack(context, 'Fitur ubah nama segera hadir.'),
+                  onTap: () => Navigator.of(context)
+                      .push(MaterialPageRoute(builder: (_) => const EditNameScreen())),
                 ),
                 _ProfileItem(
                   icon: Icons.lock_outline,
                   label: 'Ubah password',
-                  // TODO(api): POST /auth/password/change once the screen is designed.
-                  onTap: () => showAppSnack(context, 'Fitur ubah password segera hadir.'),
+                  onTap: () => Navigator.of(context)
+                      .push(MaterialPageRoute(builder: (_) => const ChangePasswordScreen())),
                 ),
                 _ProfileItem(
                   icon: Icons.info_outline,

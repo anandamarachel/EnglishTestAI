@@ -111,6 +111,37 @@ FakeConversation speakingHappyPath(FakeBackend backend) {
         'attempt': {'attempt_id': speakingAttemptId},
         'job': jobJson('job-eval', 'evaluate_attempt', 'queued'),
       }));
+  backend.on('GET /jobs/job-eval', (_) => Reply(200, jobJson('job-eval', 'evaluate_attempt', 'succeeded')));
+  backend.on('GET /attempts/$speakingAttemptId/evaluation', (_) => const Reply(200, {
+        'evaluation_id': 'sev-1',
+        'attempt_id': speakingAttemptId,
+        'status': 'completed',
+        'overall_score': null,
+        'max_score': null,
+        'rubric_version': 'speaking-ielts-practice-v1',
+        'summary': 'Good effort.',
+        'corrected_text': null,
+        'feedback_payload': {'schema_version': 1, 'corrections': [], 'limitations': []},
+        'criteria': [
+          {
+            'criterion_code': 'fluency_coherence',
+            'assessment_status': 'not_assessed',
+            'score': null,
+            'max_score': null,
+            'feedback': 'Not assessed.',
+          },
+          {
+            'criterion_code': 'lexical_resource',
+            'assessment_status': 'assessed',
+            'score': 4.5,
+            'max_score': 9,
+            'feedback': 'Use more varied words.',
+          },
+        ],
+        'quiz_summary': null,
+        'created_at': '2026-11-17T09:00:00Z',
+        'completed_at': '2026-11-17T09:00:01Z',
+      }));
   return conversation;
 }
 
