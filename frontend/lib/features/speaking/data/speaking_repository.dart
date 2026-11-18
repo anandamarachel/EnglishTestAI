@@ -42,6 +42,66 @@ class SpeakingMessage {
   final String audioMimeType;
 }
 
+/// One rubric line of a Speaking evaluation.
+class SpeakingCriterion {
+  const SpeakingCriterion({
+    required this.code,
+    required this.score,
+    required this.maxScore,
+    required this.feedback,
+  });
+
+  factory SpeakingCriterion.fromJson(Map<String, dynamic> json) => SpeakingCriterion(
+        code: json['criterion_code'] as String,
+        score: json['assessment_status'] == 'assessed' ? (json['score'] as num?)?.toDouble() : null,
+        maxScore: (json['max_score'] as num?)?.toDouble(),
+        feedback: (json['feedback'] as String?) ?? '',
+      );
+
+  final String code;
+
+  /// Null when not assessed (fluency and pronunciation need an audio assessor).
+  final double? score;
+  final double? maxScore;
+  final String feedback;
+
+  bool get assessed => score != null;
+
+  String get label => switch (code) {
+        'fluency_coherence' => 'Kelancaran & alur',
+        'lexical_resource' => 'Kosakata',
+        'grammatical_range_accuracy' => 'Tata bahasa',
+        'pronunciation' => 'Pengucapan',
+        _ => code,
+      };
+}
+
+/// `GET /attempts/{id}/evaluation` of a finished conversation.
+class SpeakingEvaluation {
+  const SpeakingEvaluation({
+    required this.overallScore,
+    required this.maxScore,
+    required this.summary,
+    required this.criteria,
+  });
+
+  factory SpeakingEvaluation.fromJson(Map<String, dynamic> json) => SpeakingEvaluation(
+        overallScore: (json['overall_score'] as num?)?.toDouble(),
+        maxScore: (json['max_score'] as num?)?.toDouble(),
+        summary: json['summary'] as String?,
+        criteria: [
+          for (final c in (json['criteria'] as List?) ?? const [])
+            SpeakingCriterion.fromJson(c as Map<String, dynamic>),
+        ],
+      );
+
+  /// Null while any criterion is unassessed (the backend never guesses a band).
+  final double? overallScore;
+  final double? maxScore;
+  final String? summary;
+  final List<SpeakingCriterion> criteria;
+}
+
 /// Speaking endpoints. POSTs take the caller's idempotency key so a retried step
 /// reuses it.
 class SpeakingRepository {
@@ -132,9 +192,15 @@ class SpeakingRepository {
   /// Private audio of an AI reply.
   Future<Uint8List> audio(String mediaId) => _api.getBytes('/media/$mediaId/download');
 
-  /// Ends the conversation and queues its evaluation.
-  Future<void> finish(String attemptId, String key) =>
-      _api.post('/speaking/attempts/$attemptId/finish', idempotencyKey: key);
+  /// Ends the conversation and queues its evaluation; returns that job.
+  Future<String?> finish(String attemptId, String key) async {
+    final body = await _api.post('/speaking/attempts/$attemptId/finish', idempotencyKey: key)
+        as Map<String, dynamic>?;
+    return (body?['job'] as Map<String, dynamic>?)?['job_id'] as String?;
+  }
+
+  Future<SpeakingEvaluation> evaluation(String attemptId) async => SpeakingEvaluation.fromJson(
+      await _api.get('/attempts/$attemptId/evaluation') as Map<String, dynamic>);
 
   Future<void> cancelJob(String jobId) =>
       _api.post('/jobs/$jobId/cancel', idempotencyKey: ApiClient.newIdempotencyKey());

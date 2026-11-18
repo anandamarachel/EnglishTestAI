@@ -90,7 +90,11 @@ class DemoSpeakingPractice implements SpeakingPractice {
   }
 
   @override
-  Future<void> finish() async {}
+  Future<bool> finish() async => false;
+
+  @override
+  Future<SpeakingEvaluation> evaluation() async =>
+      const SpeakingEvaluation(overallScore: null, maxScore: null, summary: null, criteria: []);
 
   @override
   void dispose() {

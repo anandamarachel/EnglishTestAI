@@ -3,13 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:english_day/core/config/app_info.dart';
 import 'package:english_day/core/network/api_exception.dart';
-import 'package:english_day/core/network/providers.dart';
 import 'package:english_day/core/theme/app_theme.dart';
 import 'package:english_day/core/widgets/app_button.dart';
 import 'package:english_day/core/widgets/app_text_field.dart';
 import 'package:english_day/core/widgets/common.dart';
 import 'package:english_day/features/auth/application/session_controller.dart';
+import 'package:english_day/features/auth/data/auth_repository.dart';
 import 'package:english_day/features/auth/presentation/register_screen.dart';
+import 'package:english_day/features/auth/presentation/reset_password_screen.dart';
 import 'package:english_day/features/dashboard/presentation/dashboard_screen.dart';
 
 // ------------------------------------------------------------------- Login
@@ -80,12 +81,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
     try {
-      await ref
-          .read(apiClientProvider)
-          .post('/auth/password/forgot', auth: false, data: {'email': email});
-      if (mounted) showAppSnack(context, 'Jika email terdaftar, link reset dikirim ke email kamu.');
+      await ref.read(authRepositoryProvider).forgotPassword(email);
     } on ApiException catch (e) {
       if (mounted) showAppSnack(context, e.userMessage);
+      return;
+    }
+    if (!mounted) return;
+    // The email holds a code: enter it with the new password on the next screen.
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => ResetPasswordScreen(email: email)),
+    );
+    if (changed == true && mounted) {
+      _password.clear();
+      setState(() => _state = LoginState.idle);
+      showAppSnack(context, 'Password diubah. Silakan masuk dengan password baru.');
     }
   }
 

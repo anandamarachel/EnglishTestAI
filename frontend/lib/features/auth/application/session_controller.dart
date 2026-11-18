@@ -74,6 +74,27 @@ class SessionController extends AsyncNotifier<Session> {
     return login(email: email, password: password);
   }
 
+  /// Every screen showing the name (dashboard, profile) updates at once.
+  Future<User> updateDisplayName(String displayName) async {
+    final user = await _repo.updateDisplayName(displayName);
+    state = AsyncData(Session.loggedIn(user));
+    return user;
+  }
+
+  /// Changing the password signs out everywhere, here too: log in again afterwards.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String passwordConfirmation,
+  }) async {
+    await _repo.changePassword(
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+      passwordConfirmation: passwordConfirmation,
+    );
+    state = const AsyncData(Session.loggedOut());
+  }
+
   Future<void> logout() async {
     await _repo.logout();
     state = const AsyncData(Session.loggedOut());

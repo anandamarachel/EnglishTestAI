@@ -48,6 +48,45 @@ class AuthRepository {
   Future<User> me() async =>
       User.fromJson(await _api.get('/users/me') as Map<String, dynamic>);
 
+  /// `PATCH /users/me`: only the display name can change.
+  Future<User> updateDisplayName(String displayName) async => User.fromJson(await _api
+      .patch('/users/me', data: {'display_name': displayName.trim()}) as Map<String, dynamic>);
+
+  /// `POST /auth/password/change`. The server then revokes every session, this one
+  /// included, so the local tokens are dropped too. A wrong current password is a
+  /// VALIDATION_ERROR on `current_password` (not 401).
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String passwordConfirmation,
+  }) async {
+    await _api.post('/auth/password/change', data: {
+      'current_password': currentPassword,
+      'new_password': newPassword,
+      'password_confirmation': passwordConfirmation,
+    });
+    await _api.clearTokens();
+  }
+
+  /// `POST /auth/password/forgot`: always "accepted", known email or not.
+  Future<void> forgotPassword(String email) =>
+      _api.post('/auth/password/forgot', auth: false, data: {'email': email.trim()});
+
+  /// `POST /auth/password/reset` with the code from the email. Revokes every
+  /// session; an invalid or expired code is INVALID_RESET_TOKEN.
+  Future<void> resetPassword({
+    required String token,
+    required String newPassword,
+    required String passwordConfirmation,
+  }) async {
+    await _api.post('/auth/password/reset', auth: false, data: {
+      'token': token.trim(),
+      'new_password': newPassword,
+      'password_confirmation': passwordConfirmation,
+    });
+    await _api.clearTokens();
+  }
+
   /// Revokes the session on the server (best effort) and always forgets it locally.
   Future<void> logout() async {
     try {

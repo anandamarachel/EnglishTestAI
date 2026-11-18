@@ -13,6 +13,7 @@ import 'package:english_day/features/speaking/application/speaking_session.dart'
 import 'package:english_day/features/speaking/application/voice_io.dart';
 import 'package:english_day/features/speaking/data/speaking_repository.dart';
 import 'package:english_day/features/speaking/presentation/mic_permission_screen.dart';
+import 'package:english_day/features/speaking/presentation/speaking_result_screen.dart';
 
 // ---------------------------------------------------------- Percakapan
 enum SpeakingState { idle, recording, processing, aiSpeaking, slow, error }
@@ -51,6 +52,7 @@ class _SpeakingScreenState extends ConsumerState<SpeakingScreen> {
   late SpeakingState _state = widget.initialState ??
       (_practice.started ? SpeakingState.idle : SpeakingState.processing);
   bool _startFailed = false;
+  bool _ending = false;
   int? _speakingIndex;
   Timer? _slowTimer;
   Timer? _limitTimer;
@@ -189,14 +191,25 @@ class _SpeakingScreenState extends ConsumerState<SpeakingScreen> {
   }
 
   Future<void> _end() async {
+    if (_ending) return;
+    _ending = true;
     _limitTimer?.cancel();
     if (_state == SpeakingState.recording) await _practice.cancelRecording();
+    var evaluated = false;
     try {
-      await _practice.finish();
+      evaluated = await _practice.finish();
     } catch (_) {
       // The conversation stays open; it can be continued from the dashboard.
     }
-    if (mounted) Navigator.maybePop(context);
+    if (!mounted) return;
+    if (evaluated) {
+      // The practice is disposed with this screen, but evaluation() only needs the API.
+      final load = _practice.evaluation;
+      Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => SpeakingResultScreen(load: load)));
+    } else {
+      Navigator.maybePop(context);
+    }
   }
 
   void _scrollDown() {
