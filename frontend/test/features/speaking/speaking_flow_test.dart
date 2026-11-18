@@ -69,6 +69,14 @@ void main() {
     player = FakePlayer();
   });
 
+  testWidgets('Akhiri without speaking just goes back (nothing to evaluate)', (tester) async {
+    await open(tester);
+    await tester.tap(find.text('Akhiri'));
+    await tester.pumpAndSettle();
+    expect(find.text('open'), findsOneWidget);
+    expect(backend.count('POST /speaking/attempts/$speakingAttemptId/finish'), 0);
+  });
+
   testWidgets('greeting, one spoken turn with the AI reply, then Akhiri', (tester) async {
     await open(tester);
 
@@ -91,8 +99,20 @@ void main() {
     await tester.tap(find.text('Akhiri'));
     await tester.pumpAndSettle();
     expect(backend.count('POST /speaking/attempts/$speakingAttemptId/finish'), 1);
-    expect(find.text('open'), findsOneWidget); // back where we came from
     expect(recorder.disposed, isTrue);
+
+    // The evaluation: assessed criteria with their score, the others marked.
+    expect(find.text('Hasil Speaking'), findsOneWidget);
+    expect(find.text('Good effort.'), findsOneWidget);
+    expect(find.text('Kosakata'), findsOneWidget);
+    expect(find.text('4,5/9'), findsOneWidget);
+    expect(find.text('Use more varied words.'), findsOneWidget);
+    expect(find.text('Belum dinilai'), findsOneWidget);
+    expect(find.text('Nilai keseluruhan muncul setelah semua aspek bisa dinilai.'), findsOneWidget);
+
+    await tester.tap(find.text('Kembali ke dashboard'));
+    await tester.pumpAndSettle();
+    expect(find.text('open'), findsOneWidget);
   });
 
   testWidgets('no speech heard shows the design banner', (tester) async {
