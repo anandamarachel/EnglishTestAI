@@ -120,7 +120,20 @@ Alamat API dipilih otomatis ([`lib/core/config/api_config.dart`](lib/core/config
 |---|---|
 | Emulator Android | `http://10.0.2.2:8000/api/v1` |
 | Chrome, Windows, simulator iOS | `http://localhost:8000/api/v1` |
-| HP sungguhan / server lain | `flutter run --dart-define=API_BASE_URL=http://192.168.1.20:8000/api/v1` |
+| HP sungguhan / server lain | isi `API_BASE_URL` di `frontend/.env` (lihat di bawah) |
+
+**Mengganti alamat lewat `.env`:** salin [`.env.example`](.env.example) menjadi `.env`
+(tidak di-commit), isi `API_BASE_URL`, lalu jalankan dengan `--dart-define-from-file`:
+
+```bash
+cp .env.example .env          # sekali saja; API_BASE_URL kosong = alamat otomatis
+flutter run -d chrome --web-port 5000 --dart-define-from-file=.env
+flutter build web --dart-define-from-file=.env
+```
+
+Isi `.env` ikut masuk ke dalam aplikasi, jadi **jangan menaruh rahasia** (API key AI cukup
+di `backend/.env`). Tanpa `--dart-define-from-file`, aplikasi memakai alamat otomatis di
+tabel. Satu nilai saja juga bisa: `--dart-define=API_BASE_URL=http://...`.
 
 **Chrome (CORS):** browser menolak request ke backend kecuali origin-nya diizinkan.
 Tambahkan origin Flutter web ke `backend/.env` (konfigurasi lokal, tidak di-commit),
@@ -133,7 +146,7 @@ CORS_ORIGINS=["http://localhost:5000"]
 dan selalu jalankan Chrome dengan port yang sama: `flutter run -d chrome --web-port 5000`.
 
 **HP sungguhan:** di `backend/.env` set `API_BIND=0.0.0.0` dan tambahkan IP laptop ke
-`ALLOWED_HOSTS` (lihat README root), lalu pakai `--dart-define` seperti tabel di atas.
+`ALLOWED_HOSTS` (lihat README root), lalu isi `API_BASE_URL` di `frontend/.env`.
 
 **AI sungguhan vs AI palsu:** secara default backend development memakai AI palsu (`fake`):
 soal, koreksi dan audio hanya contoh (koreksi Writing cuma mengenali beberapa pola, audio
@@ -162,7 +175,7 @@ lib/
 ├── app.dart                           # MaterialApp + sheet "sesi berakhir" global
 ├── core/                              # Dipakai semua fitur
 │   ├── config/
-│   │   ├── api_config.dart            # Alamat API (otomatis per platform / --dart-define)
+│   │   ├── api_config.dart            # Alamat API (otomatis per platform / .env)
 │   │   └── app_info.dart              # Nama aplikasi, sekolah, versi
 │   ├── models/choice_question.dart    # Soal pilihan ganda + jawaban yang dinilai server
 │   ├── navigation/route_observer.dart # Layar tahu saat tampil lagi (dashboard refresh)
