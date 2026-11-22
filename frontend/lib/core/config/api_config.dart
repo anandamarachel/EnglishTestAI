@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 
 /// Where the backend API lives.
 ///
-/// Override at build/run time:
+/// Override at build/run time (or put it in frontend/.env, see .env.example):
+///   flutter run --dart-define-from-file=.env
 ///   flutter run --dart-define=API_BASE_URL=http://192.168.1.20:8000/api/v1
 ///
 /// Defaults reach a backend started with `make start` on this computer:
