@@ -6,6 +6,12 @@ from app.core.config import PROJECT_ROOT, Settings
 
 # App import must work without a local .env, including on CI.
 # Do not override credentials from .env when running local integration tests.
+# Tests never call the real AI, even when the developer's .env holds a ROUTER_API_KEY:
+# environment variables override .env, and a blank key counts as no key. Tests that need
+# the router engine pass a key explicitly (and mock the gateway).
+os.environ["ROUTER_API_KEY"] = ""
+os.environ.pop("AI_PROVIDER", None)
+
 if not (PROJECT_ROOT / ".env").exists():
     os.environ.setdefault("POSTGRES_PASSWORD", "test-only-password")
     os.environ.setdefault("JWT_SECRET", "test-only-jwt-secret-" + "x" * 32)

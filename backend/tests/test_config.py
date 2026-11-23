@@ -30,3 +30,26 @@ def test_missing_or_weak_jwt_secret_is_rejected(secret) -> None:
         values["jwt_secret"] = secret
     with pytest.raises(ValidationError):
         Settings(_env_file=None, **values)
+
+
+def _ai(**values) -> str:
+    base = {"_env_file": None, "postgres_password": "x", "jwt_secret": "j" * 32}
+    return Settings(**base, ai_provider=None, **values).ai_provider
+
+
+def test_real_ai_is_used_automatically_when_a_key_is_set() -> None:
+    assert _ai(router_api_key="sk-test") == "router"
+    assert _ai(router_api_key="sk-test", app_env="production") == "router"
+
+
+def test_without_a_key_development_falls_back_to_the_stand_in() -> None:
+    assert _ai() == "fake"
+    assert _ai(router_api_key="") == "fake"  # blank ROUTER_API_KEY= means no key
+    assert _ai(router_api_key="   ") == "fake"
+    assert _ai(app_env="production") == "none"  # never the stand-in in production
+
+
+def test_explicit_provider_wins_over_the_key() -> None:
+    base = {"_env_file": None, "postgres_password": "x", "jwt_secret": "j" * 32}
+    settings = Settings(**base, ai_provider="fake", router_api_key="sk-test")
+    assert settings.ai_provider == "fake"

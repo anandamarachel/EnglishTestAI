@@ -79,9 +79,11 @@ topics and personas loaded. Your data is kept between runs.
 - **Try every endpoint** in Swagger UI (`/docs`): register, log in, press *Authorize* and
   paste the `access_token`. The full contract is in [docs/api/](docs/api/README.md)
   (OpenAPI file and a Postman collection).
-- **AI is a stand-in by default** (see *Using real AI* below). Generated exercises, transcripts, replies and scores are
-  predictable placeholders so you can build every screen; they are not real assessment.
-  Listening and Speaking audio is a short beep per line followed by silence.
+- **Real AI or stand-in:** with a `ROUTER_API_KEY` in `backend/.env` the backend uses the
+  real AI (see *Using real AI* below). Without one it uses a stand-in: exercises,
+  transcripts, replies and scores are predictable placeholders (audio is a beep per line
+  followed by silence), so you can still build every screen. `make logs` shows which one
+  the worker uses.
 - **AI work is asynchronous.** Creating an exercise or submitting returns a `job`; poll
   `GET /jobs/{job_id}` until it is `succeeded`, then fetch the result.
 - **Send an `Idempotency-Key` header** (a new UUID per action) on protected POST requests,
@@ -95,12 +97,10 @@ topics and personas loaded. Your data is kept between runs.
 
 ### Using real AI (9router)
 
-By default the backend uses the development stand-in engine. To use real models through
-9router (any OpenAI-compatible gateway works), add to
-`backend/.env` and run `make restart`:
+The real AI switches on automatically when `ROUTER_API_KEY` is set (ask the team for the
+key; never commit it). Add to `backend/.env` and run `make restart`:
 
 ```dotenv
-AI_PROVIDER=router
 ROUTER_BASE_URL=https://9router.lecimangga.my.id/v1   # or http://<LAN-IP>:20128/v1
 ROUTER_API_KEY=sk-...
 ROUTER_MODEL_GENERATE=gemini/gemini-3.8-flash         # exercises (or a 9router combo name)
@@ -108,7 +108,12 @@ ROUTER_MODEL_GRADE=gemini/gemini-3.1-pro-preview      # writing/speaking/short-a
 ROUTER_MODEL_CHAT=gemini/gemini-3.5-flash-lite        # Speaking partner replies
 ROUTER_MODEL_STT=gemini/gemini-3.5-flash-lite         # transcription (model must accept audio)
 AI_REQUEST_TIMEOUT_SECONDS=600
+WORKER_CONCURRENCY=4                                  # AI jobs in parallel
 ```
+
+The worker log then says `Using AI engine: 9router (...)`. Remove the key (or set
+`AI_PROVIDER=fake`) to go back to the stand-in. Tests always use the stand-in and never
+call the real AI, even when your `.env` has a key.
 
 - Text, transcription and grading go through 9router; Listening and Speaking voices use
   Microsoft Edge TTS (free, needs internet) and `ffmpeg` (installed in the Docker image).
@@ -142,8 +147,8 @@ models, Alembic migrations, environment-based configuration, health checks, test
 Docker. Accounts (register, login, token refresh, logout, password change/reset,
 profile), topics, personas, capabilities, the dashboard, attempt history, all four
 practice flows, private audio storage/download, and the AI job queue with its worker are
-implemented. A real AI/STT/TTS provider is **not connected yet**: development uses a
-deterministic stand-in.
+implemented. The real AI (9router + Edge TTS) is used when `ROUTER_API_KEY` is set;
+otherwise development uses a deterministic stand-in.
 
 The database blueprint and API field contract are in
 [docs/backend-design.md](docs/backend-design.md). The companion
@@ -312,15 +317,17 @@ already initialized in that volume; update the database role as well.
 
 ### AI provider and jobs
 
-No AI model has been chosen yet. All model calls go through a provider-neutral interface
+All model calls go through a provider-neutral interface
 (`app/ai/`), so a local model on the AI PC or an external API can be added later without
 changing the domain code. `AI_PROVIDER` selects the engine:
 
-- `fake` (default outside production): a deterministic stand-in with a few fixed
-  correction rules and predictable scores. It lets the Flutter app exercise complete
-  flows now. Every result carries a limitation note saying it is illustrative.
-- `none` (production default): the worker refuses to start and jobs stay `queued`.
-  Production refuses `fake`.
+- `router` (automatic when `ROUTER_API_KEY` is set): the real engine in
+  `app/ai/router.py` (9router + Edge TTS).
+- `fake` (default outside production without a key): a deterministic stand-in with a few
+  fixed correction rules and predictable scores. Every result carries a limitation note
+  saying it is illustrative. Tests always use it.
+- `none` (production default without a key): the worker refuses to start and jobs stay
+  `queued`. Production refuses `fake`.
 
 Jobs live in PostgreSQL (`ai_jobs`). The worker claims them with a lease, calls the
 engine outside any database transaction, and saves results only if the job is still

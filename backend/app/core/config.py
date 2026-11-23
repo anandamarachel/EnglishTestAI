@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
@@ -70,7 +70,8 @@ class Settings(BaseSettings):
     # AI provider. "fake" is a deterministic stand-in for development/tests; "router"
     # is the real engine (9router, an OpenAI-compatible gateway, plus Edge TTS); "none"
     # leaves jobs queued (the worker refuses to start).
-    # None picks "fake" outside production and "none" in production.
+    # Unset: "router" when ROUTER_API_KEY is set, else "fake" outside production and
+    # "none" in production. Set it explicitly to force one (e.g. AI_PROVIDER=fake).
     ai_provider: Literal["none", "fake", "router"] | None = None
     # Bounds one whole job execution (the engine may retry a model call inside it).
     ai_request_timeout_seconds: float = Field(default=120, gt=0)
@@ -155,10 +156,23 @@ class Settings(BaseSettings):
     media_orphan_grace_seconds: int = Field(default=3_600, ge=60)
     media_sweep_interval_seconds: int = Field(default=3_600, ge=60)
 
+    @field_validator("router_api_key", mode="before")
+    @classmethod
+    def _blank_key_is_unset(cls, value):
+        # ROUTER_API_KEY= (empty) in .env means "no key", not an empty secret.
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        return value
+
     @model_validator(mode="after")
     def _resolve_ai(self) -> Settings:
         if self.ai_provider is None:
-            self.ai_provider = "none" if self.app_env == "production" else "fake"
+            # Real AI whenever a key is configured; otherwise the stand-in for development
+            # and nothing in production (the fake engine is never used there).
+            if self.router_api_key is not None:
+                self.ai_provider = "router"
+            else:
+                self.ai_provider = "none" if self.app_env == "production" else "fake"
         if self.app_env == "production" and self.ai_provider == "fake":
             raise ValueError("The fake AI engine is for development and tests only.")
         if self.ai_provider == "router" and self.router_api_key is None:

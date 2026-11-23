@@ -433,6 +433,8 @@ def test_synthesize_speech_makes_valid_wav(monkeypatch) -> None:
         return b"\x01\x00" * 2_400  # 0.1 s at 24 kHz
 
     monkeypatch.setattr(engine, "_tts_pcm", fake_pcm)
+    # TTS is mocked above, so ffmpeg is never run; only its presence check is.
+    monkeypatch.setattr("app.ai.router.shutil.which", lambda name: f"/usr/bin/{name}")
     audio = run(
         engine.synthesize_speech(
             SpeechRequest(

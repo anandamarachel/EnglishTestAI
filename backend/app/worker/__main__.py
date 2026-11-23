@@ -22,7 +22,12 @@ async def main() -> int:
         logger.error("No AI provider configured (AI_PROVIDER=none); worker not started.")
         return 1
     if engine.is_fake:
-        logger.warning("Using the development fake AI engine; results are illustrative.")
+        logger.warning(
+            "Using the development fake AI engine; results are illustrative. "
+            "Set ROUTER_API_KEY in .env to use the real AI."
+        )
+    else:
+        logger.info("Using AI engine: %s", engine.name)
     database = Database(settings)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
