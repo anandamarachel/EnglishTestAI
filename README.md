@@ -6,7 +6,8 @@ Reading, Listening, Speaking).
 ```
 .
 ├── backend/    # FastAPI server, PostgreSQL, AI worker (Docker)
-├── frontend/   # Flutter mobile app
+├── frontend/   # Flutter mobile app (students)
+├── admin/      # Flutter web admin (school monitoring)
 └── docs/       # Backend design, database schema, API contract, UI designs (docs/design/)
 ```
 
@@ -22,6 +23,16 @@ flutter run            # or: flutter run -d chrome / -d windows
 ```
 
 UI details and screen mapping: [frontend/README.md](frontend/README.md).
+
+## Admin web (Flutter Web)
+
+```sh
+cd admin
+flutter pub get
+flutter run -d chrome
+```
+
+Pages, demo login and the backend endpoints it still needs: [admin/README.md](admin/README.md).
 
 ---
 
